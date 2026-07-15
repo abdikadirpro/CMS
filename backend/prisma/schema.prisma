@@ -1,0 +1,394 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==========================================================================
+// ENUMS
+// ==========================================================================
+
+enum AdminType {
+  SUPER_ADMIN
+  ZONE_ADMIN
+  TOWN_ADMIN
+  DISTRICT_ADMIN
+  OFFICE_ADMIN
+}
+
+enum ComplaintStatus {
+  PENDING
+  UNDER_REVIEW
+  ASSIGNED
+  IN_PROGRESS
+  WAITING
+  SOLVED
+  CLOSED
+  TRANSFERRED
+  REJECTED
+  ESCALATED
+}
+
+enum RecipientType {
+  USER
+  ADMIN
+}
+
+enum NotificationType {
+  COMPLAINT_CREATED
+  STATUS_CHANGED
+  COMPLAINT_ASSIGNED
+  COMPLAINT_TRANSFERRED
+  NOTE_ADDED
+  SYSTEM
+}
+
+enum ActorType {
+  USER
+  ADMIN
+  SYSTEM
+}
+
+// ==========================================================================
+// IDENTITY
+// ==========================================================================
+
+model User {
+  id           String   @id @default(uuid())
+  fullName     String
+  email        String   @unique
+  phone        String?
+  idNumber     String?
+  passwordHash String
+  avatarUrl    String?
+  isActive     Boolean  @default(true)
+
+  isEmailVerified      Boolean   @default(false)
+  otpCodeHash          String?
+  otpExpiresAt         DateTime?
+  resetTokenHash       String?
+  resetTokenExpiresAt  DateTime?
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  complaints    Complaint[]
+  notifications Notification[]
+  refreshTokens RefreshToken[]
+
+  @@map("users")
+}
+
+model Admin {
+  id           String    @id @default(uuid())
+  fullName     String
+  email        String    @unique
+  phone        String?
+  passwordHash String
+  avatarUrl    String?
+  adminType    AdminType
+  isActive     Boolean   @default(true)
+
+  resetTokenHash      String?
+  resetTokenExpiresAt DateTime?
+
+  roleId String?
+  role   Role?   @relation(fields: [roleId], references: [id])
+
+  zoneId String?
+  zone   Zone?   @relation(fields: [zoneId], references: [id])
+
+  districtId String?
+  district   District? @relation(fields: [districtId], references: [id])
+
+  townAdministrationId String?
+  townAdministration   TownAdministration? @relation(fields: [townAdministrationId], references: [id])
+
+  officeId String?
+  office   Office? @relation(fields: [officeId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  assignedComplaints  Complaint[]         @relation("AssignedAdmin")
+  createdComplaintNotes ComplaintNote[]
+  transfersInitiated  ComplaintTransfer[] @relation("TransferInitiatedBy")
+  transfersReceived   ComplaintTransfer[] @relation("TransferToAdmin")
+  notifications       Notification[]
+  refreshTokens       RefreshToken[]
+
+  @@map("admins")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  tokenHash String   @unique
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  adminId   String?
+  admin     Admin?   @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  revoked   Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@map("refresh_tokens")
+}
+
+// ==========================================================================
+// RBAC
+// ==========================================================================
+
+model Role {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+
+  admins      Admin[]
+  permissions RolePermission[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id          String   @id @default(uuid())
+  code        String   @unique
+  description String?
+
+  roles RolePermission[]
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId       String
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permissionId String
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+// ==========================================================================
+// GEOGRAPHIC / ADMINISTRATIVE HIERARCHY
+// ==========================================================================
+
+model Zone {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+
+  admins      Admin[]
+  districts   District[]
+  offices     Office[]
+  complaints  Complaint[]
+
+  @@map("zones")
+}
+
+model District {
+  id     String @id @default(uuid())
+  name   String
+  zoneId String
+  zone   Zone   @relation(fields: [zoneId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  admins     Admin[]
+  offices    Office[]
+  complaints Complaint[]
+
+  @@unique([zoneId, name])
+  @@map("districts")
+}
+
+model TownAdministration {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+
+  admins     Admin[]
+  offices    Office[]
+  complaints Complaint[]
+
+  @@map("town_administrations")
+}
+
+model Office {
+  id     String @id @default(uuid())
+  name   String
+  createdAt DateTime @default(now())
+
+  zoneId               String?
+  zone                 Zone?               @relation(fields: [zoneId], references: [id])
+  districtId           String?
+  district             District?           @relation(fields: [districtId], references: [id])
+  townAdministrationId String?
+  townAdministration   TownAdministration? @relation(fields: [townAdministrationId], references: [id])
+
+  admins     Admin[]
+  complaints Complaint[]
+
+  @@map("offices")
+}
+
+// ==========================================================================
+// COMPLAINTS
+// ==========================================================================
+
+model Category {
+  id          String  @id @default(uuid())
+  name        String  @unique
+  description String?
+
+  complaints Complaint[]
+
+  @@map("categories")
+}
+
+model Complaint {
+  id         String          @id @default(uuid())
+  trackingId String          @unique
+  title      String
+  description String         @db.Text
+  location    String?
+  status      ComplaintStatus @default(PENDING)
+  isAnonymous Boolean         @default(false)
+
+  // guest / anonymous submitter fields (used when isAnonymous or no account)
+  guestFullName String?
+  guestEmail    String?
+  guestPhone    String?
+  guestOffice   String?
+  guestJobTitle String?
+  guestIdNumber String?
+
+  submitterId String?
+  submitter   User?   @relation(fields: [submitterId], references: [id])
+
+  categoryId String?
+  category   Category? @relation(fields: [categoryId], references: [id])
+
+  officeId String?
+  office   Office? @relation(fields: [officeId], references: [id])
+
+  zoneId String?
+  zone   Zone?   @relation(fields: [zoneId], references: [id])
+
+  districtId String?
+  district   District? @relation(fields: [districtId], references: [id])
+
+  townAdministrationId String?
+  townAdministration   TownAdministration? @relation(fields: [townAdministrationId], references: [id])
+
+  assignedAdminId String?
+  assignedAdmin   Admin?  @relation("AssignedAdmin", fields: [assignedAdminId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  attachments    ComplaintAttachment[]
+  notes          ComplaintNote[]
+  statusHistory  ComplaintStatusHistory[]
+  transfers      ComplaintTransfer[]
+
+  @@map("complaints")
+}
+
+model ComplaintAttachment {
+  id          String   @id @default(uuid())
+  complaintId String
+  complaint   Complaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  fileName    String
+  filePath    String
+  mimeType    String
+  fileSize    Int
+  createdAt   DateTime @default(now())
+
+  @@map("complaint_attachments")
+}
+
+model ComplaintNote {
+  id          String   @id @default(uuid())
+  complaintId String
+  complaint   Complaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  adminId     String
+  admin       Admin    @relation(fields: [adminId], references: [id])
+  content     String   @db.Text
+  createdAt   DateTime @default(now())
+
+  @@map("complaint_notes")
+}
+
+model ComplaintStatusHistory {
+  id          String          @id @default(uuid())
+  complaintId String
+  complaint   Complaint       @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  fromStatus  ComplaintStatus?
+  toStatus    ComplaintStatus
+  changedById String?
+  changedByType ActorType     @default(ADMIN)
+  reason      String?
+  createdAt   DateTime        @default(now())
+
+  @@map("complaint_status_history")
+}
+
+model ComplaintTransfer {
+  id          String   @id @default(uuid())
+  complaintId String
+  complaint   Complaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+
+  fromAdminId String?
+  fromAdmin   Admin?  @relation("TransferInitiatedBy", fields: [fromAdminId], references: [id])
+
+  toAdminId String?
+  toAdmin   Admin?  @relation("TransferToAdmin", fields: [toAdminId], references: [id])
+
+  fromOfficeName String?
+  toOfficeName   String?
+  reason         String   @db.Text
+  createdAt      DateTime @default(now())
+
+  @@map("complaint_transfers")
+}
+
+// ==========================================================================
+// NOTIFICATIONS & AUDIT
+// ==========================================================================
+
+model Notification {
+  id            String            @id @default(uuid())
+  recipientType RecipientType
+  userId        String?
+  user          User?             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  adminId       String?
+  admin         Admin?            @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  type          NotificationType
+  title         String
+  message       String
+  link          String?
+  isRead        Boolean           @default(false)
+  createdAt     DateTime          @default(now())
+
+  @@map("notifications")
+}
+
+model ActivityLog {
+  id          String    @id @default(uuid())
+  actorId     String?
+  actorType   ActorType
+  actorName   String?
+  action      String
+  targetType  String?
+  targetId    String?
+  metadata    Json?
+  ipAddress   String?
+  createdAt   DateTime  @default(now())
+
+  @@map("activity_logs")
+}

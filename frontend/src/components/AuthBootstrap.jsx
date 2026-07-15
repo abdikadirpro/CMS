@@ -1,0 +1,50 @@
+import { useEffect, useRef, useState } from "react";
+import { useDispatch } from "react-redux";
+import { useRefreshSessionMutation, useLazyGetMeQuery } from "../app/api/authApi";
+import { setCredentials } from "../app/authSlice";
+import { ShieldCheck } from "lucide-react";
+
+/** Attempts a silent session restore via the httpOnly refresh cookie on first load. */
+export default function AuthBootstrap({ children }) {
+  const [ready, setReady] = useState(false);
+  const [refreshSession] = useRefreshSessionMutation();
+  const [getMe] = useLazyGetMeQuery();
+  const dispatch = useDispatch();
+  // Refresh tokens are single-use/rotated, so a duplicate call (e.g. React 18 StrictMode
+  // double-invoking this effect in dev) makes the second request fail with 401 — and if it
+  // resolves before the first, this briefly reports "not authenticated", bouncing the user to
+  // /login before the real result comes back. Guard so the bootstrap only ever runs once.
+  const bootstrapped = useRef(false);
+
+  useEffect(() => {
+    if (bootstrapped.current) return;
+    bootstrapped.current = true;
+
+    (async () => {
+      try {
+        const refreshResult = await refreshSession().unwrap();
+        dispatch(setCredentials({ accessToken: refreshResult.data.accessToken }));
+        const meResult = await getMe().unwrap();
+        dispatch(setCredentials({ actor: meResult.data.actor }));
+      } catch {
+        // no valid session — user will land on public/auth pages
+      } finally {
+        setReady(true);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  if (!ready) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-surface">
+        <div className="flex flex-col items-center gap-3 text-primary">
+          <ShieldCheck className="h-10 w-10 animate-pulse" />
+          <p className="text-sm text-slate-400">Loading CMS...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return children;
+}

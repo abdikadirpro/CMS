@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(Restart-Service -Name \"postgresql-x64-17\" -Force)",
+      "PowerShell(Get-Service -Name \"postgresql-x64-17\")"
+    ]
+  }
+}

@@ -1,0 +1,19 @@
+node_modules/
+dist/
+build/
+.env
+!.env.example
+
+# Backend
+backend/uploads/complaints/*
+!backend/uploads/complaints/.gitkeep
+backend/backups/
+
+# Editors / OS
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Logs
+npm-debug.log*
+*.log
