@@ -9,6 +9,9 @@ backend/uploads/complaints/*
 !backend/uploads/complaints/.gitkeep
 backend/backups/
 
+# One-off scripts with real credentials hardcoded — never commit these
+backend/scripts/seed-production-test-accounts.js
+
 # Editors / OS
 .vscode/
 .DS_Store

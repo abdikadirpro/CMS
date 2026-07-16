@@ -8,10 +8,18 @@ function required(name, fallback) {
   return value;
 }
 
+// Dashboard env-var UIs (Render, etc.) can smuggle in a trailing newline or slash when a value is
+// pasted — either breaks a raw HTTP header (Node throws "Invalid character in header content") or
+// silently fails a CORS origin match. Strip both defensively rather than trusting the raw value.
+function sanitizeUrl(value) {
+  if (!value) return value;
+  return value.trim().replace(/\/+$/, "");
+}
+
 module.exports = {
   nodeEnv: process.env.NODE_ENV || "development",
   port: parseInt(process.env.PORT || "5000", 10),
-  clientUrl: process.env.CLIENT_URL || "http://localhost:5173",
+  clientUrl: sanitizeUrl(process.env.CLIENT_URL) || "http://localhost:5173",
   databaseUrl: required("DATABASE_URL"),
   jwt: {
     accessSecret: required("JWT_ACCESS_SECRET"),
