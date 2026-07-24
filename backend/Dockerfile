@@ -13,6 +13,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends wget gnupg lsb-
     && apt-get purge -y --auto-remove wget gnupg lsb-release \
     && rm -rf /var/lib/apt/lists/*
 
+# Fail the build loudly (with the actual version printed) rather than silently shipping a
+# mismatched pg_dump that only surfaces as a runtime error when someone clicks "Create Backup".
+RUN pg_dump --version && pg_dump --version | grep -q "(PostgreSQL) ${PG_CLIENT_MAJOR}\." \
+    || (echo "ERROR: installed pg_dump is not major version ${PG_CLIENT_MAJOR}" && exit 1)
+
 WORKDIR /app
 
 COPY package*.json ./
