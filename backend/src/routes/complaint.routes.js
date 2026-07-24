@@ -54,6 +54,8 @@ router.post(
   ctrl.transfer
 );
 
+router.post("/:id/escalate", authenticate, ctrl.escalate);
+
 router.post("/:id/notes", authenticate, authorize(), [body("content").trim().notEmpty()], validate, ctrl.addNote);
 
 module.exports = router;

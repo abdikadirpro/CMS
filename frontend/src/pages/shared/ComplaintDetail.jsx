@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import toast from "react-hot-toast";
-import { ArrowLeft, Paperclip, MessageSquarePlus, ArrowLeftRight, UserCheck } from "lucide-react";
+import { ArrowLeft, Paperclip, MessageSquarePlus, ArrowLeftRight, UserCheck, ArrowUpCircle } from "lucide-react";
 import { Card } from "../../components/ui/Card";
 import { StatusBadge, Badge } from "../../components/ui/Badge";
 import { Select, Textarea, Label } from "../../components/ui/Input";
@@ -11,13 +11,29 @@ import { Modal } from "../../components/ui/Modal";
 import { SkeletonCard } from "../../components/ui/Skeleton";
 import {
   useGetComplaintByIdQuery, useUpdateComplaintStatusMutation,
-  useTransferComplaintMutation, useAddComplaintNoteMutation,
+  useTransferComplaintMutation, useEscalateComplaintMutation, useAddComplaintNoteMutation,
 } from "../../app/api/complaintsApi";
 import { useGetAdminDirectoryQuery } from "../../app/api/adminApi";
 import { useAuth } from "../../hooks/useAuth";
 import { formatDateTime } from "../../lib/utils";
 
 const STATUSES = ["PENDING", "UNDER_REVIEW", "ASSIGNED", "IN_PROGRESS", "WAITING", "SOLVED", "CLOSED", "TRANSFERRED", "REJECTED", "ESCALATED"];
+
+const ESCALATION_LEVEL_LABELS = { ZONE_ADMIN: "Zone", SUPER_ADMIN: "Regional level (Super Admin)" };
+
+/** Mirrors the backend's isValidTransferTarget (jurisdiction.service.js) so the transfer dropdown only offers valid targets. */
+function isValidTransferTarget(complaint, admin) {
+  if (admin.adminType === "SUPER_ADMIN") return true;
+  if (complaint.districtId) {
+    if (admin.districtId === complaint.districtId) return true;
+    if (admin.adminType === "ZONE_ADMIN" && admin.zoneId === complaint.zoneId) return true;
+    return false;
+  }
+  if (complaint.zoneId) return admin.zoneId === complaint.zoneId;
+  if (complaint.townAdministrationId) return admin.townAdministrationId === complaint.townAdministrationId;
+  if (complaint.officeId) return admin.officeId === complaint.officeId;
+  return true;
+}
 
 function Row({ label, value }) {
   if (!value) return null;
@@ -31,10 +47,11 @@ function Row({ label, value }) {
 
 export default function ComplaintDetail() {
   const { id } = useParams();
-  const { isAdmin } = useAuth();
+  const { isAdmin, actor } = useAuth();
   const { data, isLoading } = useGetComplaintByIdQuery(id);
   const [updateStatus, { isLoading: updatingStatus }] = useUpdateComplaintStatusMutation();
   const [transferComplaint, { isLoading: transferring }] = useTransferComplaintMutation();
+  const [escalateComplaint, { isLoading: escalating }] = useEscalateComplaintMutation();
   const [addNote, { isLoading: addingNote }] = useAddComplaintNoteMutation();
   const { data: directoryRes } = useGetAdminDirectoryQuery(undefined, { skip: !isAdmin });
 
@@ -45,6 +62,19 @@ export default function ComplaintDetail() {
   if (isLoading) return <SkeletonCard />;
   const complaint = data?.data;
   if (!complaint) return <p>Complaint not found.</p>;
+
+  const isOwner = !isAdmin && actor && complaint.submitterId === actor.id;
+  const escalation = complaint.escalation;
+  const validTransferTargets = (directoryRes?.data ?? []).filter((a) => isValidTransferTarget(complaint, a));
+
+  async function onEscalate() {
+    try {
+      await escalateComplaint({ id }).unwrap();
+      toast.success("Complaint escalated");
+    } catch (err) {
+      toast.error(err?.data?.message || "Escalation failed");
+    }
+  }
 
   async function onStatusChange(e) {
     const status = e.target.value;
@@ -167,6 +197,26 @@ export default function ComplaintDetail() {
         </Card>
       )}
 
+      {isOwner && escalation?.nextLevel && (
+        <Card className="mb-5">
+          <h3 className="mb-2 flex items-center gap-2 font-semibold"><ArrowUpCircle className="h-4 w-4 text-primary" /> Escalation</h3>
+          {escalation.canEscalate ? (
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className="text-sm text-[rgb(var(--fg-muted))]">
+                It&apos;s been 10+ days with no response. You can escalate this complaint to the {ESCALATION_LEVEL_LABELS[escalation.nextLevel]}.
+              </p>
+              <Button size="sm" onClick={onEscalate} loading={escalating}>
+                <ArrowUpCircle className="h-4 w-4" /> Escalate to {ESCALATION_LEVEL_LABELS[escalation.nextLevel]}
+              </Button>
+            </div>
+          ) : (
+            <p className="text-sm text-[rgb(var(--fg-muted))]">
+              You can escalate this complaint to the {ESCALATION_LEVEL_LABELS[escalation.nextLevel]} if there&apos;s no response by {formatDateTime(escalation.eligibleAt)}.
+            </p>
+          )}
+        </Card>
+      )}
+
       <Card className="mb-5">
         <h3 className="mb-4 font-semibold">Status Timeline</h3>
         <ol className="space-y-3 border-l border-[rgb(var(--border))] pl-4">
@@ -210,12 +260,15 @@ export default function ComplaintDetail() {
             <Label>Transfer to Admin (optional)</Label>
             <Select {...registerTransfer("toAdminId")}>
               <option value="">— None specified —</option>
-              {directoryRes?.data?.map((a) => (
+              {validTransferTargets.map((a) => (
                 <option key={a.id} value={a.id}>
                   {a.fullName} ({a.adminType.replace("_", " ")}{a.district ? ` · ${a.district.name}` : a.zone ? ` · ${a.zone.name}` : a.office ? ` · ${a.office.name}` : ""})
                 </option>
               ))}
             </Select>
+            <p className="mt-1 text-xs text-[rgb(var(--fg-muted))]">
+              Only shows admins within this complaint&apos;s own jurisdiction, its parent zone, or the Super Admin — transfers can&apos;t cross into an unrelated zone/district.
+            </p>
           </div>
           <div>
             <Label>Or Office Name</Label>

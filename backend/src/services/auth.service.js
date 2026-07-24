@@ -54,6 +54,41 @@ async function comparePassword(plain, hash) {
   return bcrypt.compare(plain, hash);
 }
 
+const MAX_LOGIN_ATTEMPTS = 3;
+const LOCKOUT_DURATION_MS = 60 * 60 * 1000;
+
+function actorTable(actorType) {
+  return actorType === "ADMIN" ? prisma.admin : prisma.user;
+}
+
+/**
+ * Records a failed password attempt and locks the account for an hour once it hits
+ * MAX_LOGIN_ATTEMPTS. Returns the updated { failedLoginAttempts, lockedUntil } so the
+ * caller can decide which error message to show.
+ */
+async function recordFailedLogin(actorType, actor) {
+  // A lock that has already expired doesn't count toward a fresh streak of attempts.
+  const previousAttempts = actor.lockedUntil && actor.lockedUntil <= new Date() ? 0 : actor.failedLoginAttempts;
+  const attempts = previousAttempts + 1;
+
+  const data =
+    attempts >= MAX_LOGIN_ATTEMPTS
+      ? { failedLoginAttempts: 0, lockedUntil: new Date(Date.now() + LOCKOUT_DURATION_MS) }
+      : { failedLoginAttempts: attempts, lockedUntil: null };
+
+  const updated = await actorTable(actorType).update({ where: { id: actor.id }, data });
+  return { failedLoginAttempts: updated.failedLoginAttempts, lockedUntil: updated.lockedUntil };
+}
+
+/** Clears any failed-attempt/lockout state after a successful login. */
+async function resetLoginAttempts(actorType, actor) {
+  if (!actor.failedLoginAttempts && !actor.lockedUntil) return;
+  await actorTable(actorType).update({
+    where: { id: actor.id },
+    data: { failedLoginAttempts: 0, lockedUntil: null },
+  });
+}
+
 function sanitizeUser(user) {
   const { passwordHash, otpCodeHash, resetTokenHash, ...safe } = user;
   return { ...safe, type: "USER" };
@@ -71,4 +106,7 @@ module.exports = {
   comparePassword,
   sanitizeUser,
   sanitizeAdmin,
+  recordFailedLogin,
+  resetLoginAttempts,
+  MAX_LOGIN_ATTEMPTS,
 };

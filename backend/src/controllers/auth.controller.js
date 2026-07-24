@@ -8,6 +8,8 @@ const {
   comparePassword,
   sanitizeUser,
   sanitizeAdmin,
+  recordFailedLogin,
+  resetLoginAttempts,
 } = require("../services/auth.service");
 const { logActivity } = require("../services/activityLog.service");
 const logger = require("../utils/logger");
@@ -124,8 +126,26 @@ async function login(req, res, next) {
     if (!actor) throw new ApiError(401, "Invalid email or password");
     if (!actor.isActive) throw new ApiError(403, "This account has been deactivated");
 
+    if (actor.lockedUntil && actor.lockedUntil > new Date()) {
+      const minutesLeft = Math.ceil((actor.lockedUntil.getTime() - Date.now()) / 60000);
+      throw new ApiError(423, `Too many failed login attempts. Try again in ${minutesLeft} minute(s).`, {
+        code: "ACCOUNT_LOCKED",
+        lockedUntil: actor.lockedUntil,
+      });
+    }
+
     const passwordMatches = await comparePassword(password, actor.passwordHash);
-    if (!passwordMatches) throw new ApiError(401, "Invalid email or password");
+    if (!passwordMatches) {
+      const { lockedUntil } = await recordFailedLogin(actorType, actor);
+      if (lockedUntil) {
+        throw new ApiError(423, "Too many failed login attempts. Your account is locked for 1 hour.", {
+          code: "ACCOUNT_LOCKED",
+          lockedUntil,
+        });
+      }
+      throw new ApiError(401, "Invalid email or password");
+    }
+    await resetLoginAttempts(actorType, actor);
 
     if (actorType === "USER" && !actor.isEmailVerified) {
       throw new ApiError(403, "Please verify your email before logging in", {

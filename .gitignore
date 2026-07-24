@@ -11,6 +11,7 @@ backend/backups/
 
 # One-off scripts with real credentials hardcoded — never commit these
 backend/scripts/seed-production-test-accounts.js
+backend/scripts/demo-check.js
 
 # Editors / OS
 .vscode/

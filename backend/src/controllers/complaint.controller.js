@@ -1,8 +1,15 @@
 const prisma = require("../config/db");
 const { ApiError, success } = require("../utils/apiResponse");
-const { createUniqueTrackingId, resolveJurisdictionFromLocation } = require("../services/complaint.service");
+const {
+  createUniqueTrackingId,
+  resolveJurisdictionFromLocation,
+  assertSubmissionAllowed,
+  assertGuestSubmissionAllowed,
+  getEscalationStatus,
+} = require("../services/complaint.service");
 const { scopeForAdmin } = require("../middleware/rbac");
-const { notify } = require("../services/notification.service");
+const { isValidTransferTarget } = require("../services/jurisdiction.service");
+const { notify, notifyMany } = require("../services/notification.service");
 const { emitToJurisdiction } = require("../sockets/index");
 const { logActivity } = require("../services/activityLog.service");
 
@@ -50,6 +57,13 @@ async function create(req, res, next) {
     // Guest identity fields matter whenever the complaint isn't tied to a logged-in account
     // (anonymous submissions, or a guest who never registered) — not only when isAnonymous is set.
     const isGuestSubmission = !submitterId;
+
+    // Check the logged-in actor's own submission history, not submitterId — an anonymous
+    // submission from a logged-in account has submitterId=null but must still be rate-limited
+    // against that account, or the "anonymous" checkbox would be an unlimited-submissions bypass.
+    // A genuinely unauthenticated guest has no account to key that on, so fall back to their IP.
+    if (req.actor?.type === "USER") await assertSubmissionAllowed(req.actor.id);
+    else await assertGuestSubmissionAllowed(req.ip);
 
     const trackingId = await createUniqueTrackingId();
 
@@ -103,6 +117,7 @@ async function create(req, res, next) {
       action: "COMPLAINT_CREATED",
       targetType: "Complaint",
       targetId: complaint.id,
+      ipAddress: req.ip,
     });
 
     // Notify admins scoped to this jurisdiction that a new complaint has arrived
@@ -234,7 +249,7 @@ async function getById(req, res, next) {
       }
     }
 
-    return success(res, { data: serializeComplaint(complaint) });
+    return success(res, { data: { ...serializeComplaint(complaint), escalation: getEscalationStatus(complaint) } });
   } catch (err) {
     next(err);
   }
@@ -250,6 +265,7 @@ async function updateStatus(req, res, next) {
       where: { id: complaint.id },
       data: {
         status,
+        lastFeedbackAt: new Date(),
         statusHistory: {
           create: { fromStatus: complaint.status, toStatus: status, changedById: req.actor.id, changedByType: "ADMIN", reason },
         },
@@ -294,6 +310,7 @@ async function assign(req, res, next) {
       data: {
         assignedAdminId: adminId,
         status: "ASSIGNED",
+        lastFeedbackAt: new Date(),
         statusHistory: {
           create: { fromStatus: complaint.status, toStatus: "ASSIGNED", changedById: req.actor.id, changedByType: "ADMIN", reason: "Assigned to admin" },
         },
@@ -321,6 +338,9 @@ async function transfer(req, res, next) {
     if (!complaint) throw new ApiError(404, "Complaint not found");
 
     const toAdmin = toAdminId ? await prisma.admin.findUnique({ where: { id: toAdminId } }) : null;
+    if (!isValidTransferTarget(complaint, toAdmin)) {
+      throw new ApiError(403, "You can only transfer this complaint to its own zone, within its current jurisdiction, or to the Super Admin.");
+    }
 
     const [updated] = await prisma.$transaction([
       prisma.complaint.update({
@@ -332,6 +352,9 @@ async function transfer(req, res, next) {
           districtId: toAdmin?.districtId ?? complaint.districtId,
           townAdministrationId: toAdmin?.townAdministrationId ?? complaint.townAdministrationId,
           officeId: toAdmin?.officeId ?? complaint.officeId,
+          currentLevelEnteredAt: new Date(),
+          lastFeedbackAt: null,
+          escalatedTo: null,
           statusHistory: {
             create: { fromStatus: complaint.status, toStatus: "TRANSFERRED", changedById: req.actor.id, changedByType: "ADMIN", reason },
           },
@@ -373,6 +396,68 @@ async function transfer(req, res, next) {
   }
 }
 
+/** Citizen-initiated escalation: moves the submitter's own unanswered complaint one level up (District -> Zone -> Super Admin) once its 10-day window has passed with no admin response. */
+async function escalate(req, res, next) {
+  try {
+    const complaint = await prisma.complaint.findUnique({ where: { id: req.params.id } });
+    if (!complaint) throw new ApiError(404, "Complaint not found");
+    if (req.actor.type !== "USER" || complaint.submitterId !== req.actor.id) {
+      throw new ApiError(403, "Only the citizen who filed this complaint can escalate it");
+    }
+
+    const { canEscalate, nextLevel } = getEscalationStatus(complaint);
+    if (!canEscalate) throw new ApiError(400, "This complaint is not yet eligible for escalation");
+
+    const nextLevelLabel = nextLevel === "ZONE_ADMIN" ? "Zone Office" : "Regional Office (Super Admin)";
+    const currentLevelLabel = complaint.escalatedTo === "ZONE_ADMIN" ? "Zone" : complaint.districtId ? "District" : "Zone";
+    const reason = `Auto-escalated by citizen after 10 days with no response from the ${currentLevelLabel} office`;
+
+    const updated = await prisma.complaint.update({
+      where: { id: complaint.id },
+      data: {
+        status: "ESCALATED",
+        escalatedTo: nextLevel,
+        assignedAdminId: null,
+        currentLevelEnteredAt: new Date(),
+        lastFeedbackAt: null,
+        statusHistory: {
+          create: { fromStatus: complaint.status, toStatus: "ESCALATED", changedById: req.actor.id, changedByType: "USER", reason },
+        },
+        transfers: {
+          create: { fromAdminId: null, toAdminId: null, toOfficeName: nextLevelLabel, reason },
+        },
+      },
+    });
+
+    const recipients =
+      nextLevel === "ZONE_ADMIN"
+        ? await prisma.admin.findMany({ where: { adminType: "ZONE_ADMIN", zoneId: complaint.zoneId } })
+        : await prisma.admin.findMany({ where: { adminType: "SUPER_ADMIN" } });
+
+    await notifyMany(
+      recipients.map((a) => ({ type: "ADMIN", id: a.id })),
+      {
+        type: "COMPLAINT_TRANSFERRED",
+        title: "A complaint was escalated to you",
+        message: `Complaint "${complaint.title}" (${complaint.trackingId}) was escalated after 10 days with no response.`,
+        link: `/app/complaints/${complaint.id}`,
+      }
+    );
+
+    await notify({
+      recipient: { type: "USER", id: req.actor.id },
+      type: "COMPLAINT_TRANSFERRED",
+      title: "Your complaint was escalated",
+      message: `Your complaint "${complaint.title}" was escalated to the ${nextLevelLabel} after 10 days with no response.`,
+      link: `/app/complaints/${complaint.id}`,
+    });
+
+    return success(res, { message: "Complaint escalated", data: updated });
+  } catch (err) {
+    next(err);
+  }
+}
+
 async function addNote(req, res, next) {
   try {
     const { content } = req.body;
@@ -390,4 +475,4 @@ async function addNote(req, res, next) {
   }
 }
 
-module.exports = { create, list, getByTrackingId, getById, updateStatus, assign, transfer, addNote };
+module.exports = { create, list, getByTrackingId, getById, updateStatus, assign, transfer, escalate, addNote };

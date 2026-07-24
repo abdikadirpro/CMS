@@ -20,12 +20,15 @@ export default function SubmitComplaint() {
   const { data: zonesRes } = useGetZonesQuery();
   const { data: districtsRes } = useGetDistrictsQuery();
   const { data: townsRes } = useGetTownAdministrationsQuery();
-  const { isUser } = useAuth();
+  const { isUser, actor } = useAuth();
   const navigate = useNavigate();
   const [files, setFiles] = useState([]);
 
   const isAnonymous = watch("isAnonymous");
-  const showGuestFields = !isUser || isAnonymous;
+  // A logged-in, non-anonymous citizen's name/email/phone are already known from their account —
+  // shown read-only instead of asking for them again. Everyone else (guest, or an anonymous
+  // account) still needs to type them in.
+  const isIdentifiedAccount = isUser && !isAnonymous;
   const locationType = watch("locationType");
   const selectedZoneId = watch("zoneId");
   const districtsInZone = (districtsRes?.data ?? []).filter((d) => d.zoneId === selectedZoneId);
@@ -56,13 +59,16 @@ export default function SubmitComplaint() {
     // locationType === "office": officeId (appended above) is already the full routing signal —
     // no district/zone/town to add.
     formData.append("isAnonymous", String(Boolean(values.isAnonymous)));
-    if (showGuestFields) {
+    // Office/Job Position/ID Number are per-complaint context the backend stores regardless of
+    // submission type, so they're always sent. Name/Email/Phone are only meaningful when there's
+    // no account identity to fall back on — the backend ignores them for an identified submission.
+    formData.append("guestOffice", values.guestOffice || "");
+    formData.append("guestJobTitle", values.guestJobTitle || "");
+    formData.append("guestIdNumber", values.guestIdNumber || "");
+    if (!isIdentifiedAccount) {
       formData.append("guestFullName", values.guestFullName || "");
       formData.append("guestEmail", values.guestEmail || "");
       formData.append("guestPhone", values.guestPhone || "");
-      formData.append("guestOffice", values.guestOffice || "");
-      formData.append("guestJobTitle", values.guestJobTitle || "");
-      formData.append("guestIdNumber", values.guestIdNumber || "");
     }
     files.forEach((file) => formData.append("attachments", file));
 
@@ -85,26 +91,21 @@ export default function SubmitComplaint() {
       <p className="mt-1 text-sm text-[rgb(var(--fg-muted))]">Provide as much detail as possible to help us route and resolve your complaint quickly.</p>
 
       <form onSubmit={handleSubmit(onSubmit)} className="mt-6 space-y-6">
-        {showGuestFields && (
-          <Card>
-            <h3 className="mb-4 font-semibold">Personal Information</h3>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <Card>
+          <h3 className="mb-4 font-semibold">Personal Information</h3>
+
+          {isIdentifiedAccount ? (
+            <div className="mb-4 rounded-lg bg-[rgb(var(--bg-alt))] p-3 text-sm">
+              <p className="font-medium">{actor?.fullName}</p>
+              <p className="text-[rgb(var(--fg-muted))]">{[actor?.email, actor?.phone].filter(Boolean).join(" · ")}</p>
+              <p className="mt-1 text-xs text-[rgb(var(--fg-muted))]">Filing as your registered account. Fill in the fields below only if they&apos;re relevant to this complaint.</p>
+            </div>
+          ) : (
+            <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <Label>Full Name</Label>
-                <Input {...register("guestFullName", { required: showGuestFields && !isAnonymous ? "Full name is required" : false })} />
+                <Input {...register("guestFullName", { required: !isAnonymous ? "Full name is required" : false })} />
                 <FieldError>{errors.guestFullName?.message}</FieldError>
-              </div>
-              <div>
-                <Label>ID Number (Optional)</Label>
-                <Input {...register("guestIdNumber")} />
-              </div>
-              <div>
-                <Label>Office / Workplace</Label>
-                <Input {...register("guestOffice")} />
-              </div>
-              <div>
-                <Label>Job Position</Label>
-                <Input {...register("guestJobTitle")} />
               </div>
               <div>
                 <Label>Phone Number</Label>
@@ -115,8 +116,23 @@ export default function SubmitComplaint() {
                 <Input type="email" {...register("guestEmail")} />
               </div>
             </div>
-          </Card>
-        )}
+          )}
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <Label>ID Number (Optional)</Label>
+              <Input {...register("guestIdNumber")} />
+            </div>
+            <div>
+              <Label>Office / Workplace</Label>
+              <Input {...register("guestOffice")} />
+            </div>
+            <div>
+              <Label>Job Position</Label>
+              <Input {...register("guestJobTitle")} />
+            </div>
+          </div>
+        </Card>
 
         <Card>
           <h3 className="mb-4 font-semibold">Complaint Details</h3>
@@ -230,7 +246,7 @@ export default function SubmitComplaint() {
                   </Select>
                   <FieldError>{errors.officeId?.message}</FieldError>
                   <p className="mt-1 text-xs text-[rgb(var(--fg-muted))]">
-                    Use this for a regional-level office issue with no specific district, zone, or town — it goes straight to that office's admin, reporting directly to the Super Admin.
+                    Use this for a regional-level office issue with no specific district, zone, or town — it goes straight to that office&apos;s admin, reporting directly to the Super Admin.
                   </p>
                 </div>
               )}
