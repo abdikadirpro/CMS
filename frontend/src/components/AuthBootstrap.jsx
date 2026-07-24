@@ -20,6 +20,17 @@ export default function AuthBootstrap({ children }) {
     if (bootstrapped.current) return;
     bootstrapped.current = true;
 
+    // The backend (Render free tier) can cold-start in 20-30s after being idle. Don't hold the
+    // entire app hostage behind that — if the refresh hasn't settled within BOOTSTRAP_TIMEOUT_MS,
+    // let the app render as "logged out" anyway. The refresh/getMe calls keep running in the
+    // background regardless, so a session that resolves after the timeout still logs the user in
+    // silently (no redirect needed) once it lands.
+    const BOOTSTRAP_TIMEOUT_MS = 8000;
+    let settled = false;
+    const timeoutId = setTimeout(() => {
+      if (!settled) setReady(true);
+    }, BOOTSTRAP_TIMEOUT_MS);
+
     (async () => {
       try {
         const refreshResult = await refreshSession().unwrap();
@@ -29,6 +40,8 @@ export default function AuthBootstrap({ children }) {
       } catch {
         // no valid session — user will land on public/auth pages
       } finally {
+        settled = true;
+        clearTimeout(timeoutId);
         setReady(true);
       }
     })();
