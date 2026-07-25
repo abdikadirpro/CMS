@@ -21,6 +21,10 @@ module.exports = {
   port: parseInt(process.env.PORT || "5000", 10),
   clientUrl: sanitizeUrl(process.env.CLIENT_URL) || "http://localhost:5173",
   databaseUrl: required("DATABASE_URL"),
+  email: {
+    resendApiKey: process.env.RESEND_API_KEY || null,
+    from: process.env.EMAIL_FROM || "CMS <onboarding@resend.dev>",
+  },
   jwt: {
     accessSecret: required("JWT_ACCESS_SECRET"),
     refreshSecret: required("JWT_REFRESH_SECRET"),

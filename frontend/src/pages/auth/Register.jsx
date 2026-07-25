@@ -17,9 +17,7 @@ export default function Register() {
     setServerError("");
     try {
       const res = await registerUser(values).unwrap();
-      toast.success("Account created! Enter the verification code to continue.");
-      const devOtp = res.data.devOtp ? ` (dev code: ${res.data.devOtp})` : "";
-      if (res.data.devOtp) toast(`Dev mode${devOtp}`, { icon: "🔑", duration: 8000 });
+      toast.success("Account created! Check your email for the verification code.");
       navigate(`/verify-otp?userId=${res.data.userId}`);
     } catch (err) {
       setServerError(err?.data?.message || "Registration failed");

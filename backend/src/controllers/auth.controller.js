@@ -12,7 +12,7 @@ const {
   resetLoginAttempts,
 } = require("../services/auth.service");
 const { logActivity } = require("../services/activityLog.service");
-const logger = require("../utils/logger");
+const { sendOtpEmail, sendPasswordResetEmail } = require("../services/email.service");
 
 const REFRESH_COOKIE_NAME = "cms_refresh_token";
 const REFRESH_COOKIE_OPTIONS = {
@@ -46,17 +46,13 @@ async function register(req, res, next) {
       },
     });
 
-    logger.info(`[DEV OTP] Verification code for ${email}: ${otp}`);
+    await sendOtpEmail({ to: email, fullName, otp });
     await logActivity({ actor: { type: "USER", id: user.id, fullName }, action: "USER_REGISTERED", targetType: "User", targetId: user.id });
 
     return success(res, {
       statusCode: 201,
       message: "Account created. Enter the verification code sent to your email to activate it.",
-      data: {
-        userId: user.id,
-        email: user.email,
-        devOtp: process.env.NODE_ENV === "development" ? otp : undefined,
-      },
+      data: { userId: user.id, email: user.email },
     });
   } catch (err) {
     next(err);
@@ -102,12 +98,9 @@ async function resendOtp(req, res, next) {
       where: { id: user.id },
       data: { otpCodeHash: hashToken(otp), otpExpiresAt: new Date(Date.now() + 10 * 60 * 1000) },
     });
-    logger.info(`[DEV OTP] Verification code for ${user.email}: ${otp}`);
+    await sendOtpEmail({ to: user.email, fullName: user.fullName, otp });
 
-    return success(res, {
-      message: "A new verification code has been sent",
-      data: { devOtp: process.env.NODE_ENV === "development" ? otp : undefined },
-    });
+    return success(res, { message: "A new verification code has been sent" });
   } catch (err) {
     next(err);
   }
@@ -253,12 +246,9 @@ async function forgotPassword(req, res, next) {
     if (table === "admin") await prisma.admin.update({ where: { id: actor.id }, data });
     else await prisma.user.update({ where: { id: actor.id }, data });
 
-    logger.info(`[DEV RESET CODE] Password reset code for ${email}: ${otp}`);
+    await sendPasswordResetEmail({ to: email, fullName: actor.fullName, code: otp });
 
-    return success(res, {
-      message: "If that email exists, a reset code has been sent",
-      data: { devResetCode: process.env.NODE_ENV === "development" ? otp : undefined },
-    });
+    return success(res, { message: "If that email exists, a reset code has been sent" });
   } catch (err) {
     next(err);
   }

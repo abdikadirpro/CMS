@@ -22,7 +22,6 @@ export default function ForgotPassword() {
       const res = await forgotPassword({ email: values.email }).unwrap();
       setEmail(values.email);
       toast.success(res.message);
-      if (res.data?.devResetCode) toast(`Dev code: ${res.data.devResetCode}`, { icon: "🔑", duration: 8000 });
       setStep(2);
     } catch (err) {
       setServerError(err?.data?.message || "Something went wrong");

@@ -33,9 +33,8 @@ export default function OtpVerification() {
 
   async function handleResend() {
     try {
-      const res = await resendOtp({ userId }).unwrap();
-      toast.success("A new code has been sent");
-      if (res.data.devOtp) toast(`Dev code: ${res.data.devOtp}`, { icon: "🔑", duration: 8000 });
+      await resendOtp({ userId }).unwrap();
+      toast.success("A new code has been sent to your email");
     } catch (err) {
       toast.error(err?.data?.message || "Could not resend code");
     }
