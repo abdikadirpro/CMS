@@ -41,6 +41,17 @@ const SUBMISSION_MONTHLY_LIMIT = 3;
 const SUBMISSION_MIN_GAP_MS = 5 * 60 * 1000;
 const SUBMISSION_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
 
+/** Formats a duration in whatever unit reads naturally, so error messages stay honest even when
+ * SUBMISSION_MIN_GAP_MS is temporarily set to something other than whole days (e.g. for testing). */
+function formatDuration(ms) {
+  const minutes = Math.ceil(ms / (60 * 1000));
+  if (minutes < 60) return `${minutes} minute(s)`;
+  const hours = Math.ceil(ms / (60 * 60 * 1000));
+  if (hours < 24) return `${hours} hour(s)`;
+  const days = Math.ceil(ms / (24 * 60 * 60 * 1000));
+  return `${days} day(s)`;
+}
+
 /**
  * Throws if a logged-in citizen has submitted a complaint too recently (< 10 days ago) or has
  * already hit the 3-per-rolling-month cap. Applies to every authenticated submission, including
@@ -59,8 +70,7 @@ async function assertSubmissionAllowed(userId) {
   if (last) {
     const elapsedMs = Date.now() - last.createdAt.getTime();
     if (elapsedMs < SUBMISSION_MIN_GAP_MS) {
-      const daysLeft = Math.ceil((SUBMISSION_MIN_GAP_MS - elapsedMs) / (24 * 60 * 60 * 1000));
-      throw new ApiError(429, `Please wait ${daysLeft} more day(s) before submitting another complaint (minimum 10 days between submissions).`);
+      throw new ApiError(429, `Please wait ${formatDuration(SUBMISSION_MIN_GAP_MS - elapsedMs)} before submitting another complaint (minimum ${formatDuration(SUBMISSION_MIN_GAP_MS)} between submissions).`);
     }
   }
 
@@ -91,8 +101,7 @@ async function assertGuestSubmissionAllowed(ipAddress) {
   if (last) {
     const elapsedMs = Date.now() - last.createdAt.getTime();
     if (elapsedMs < SUBMISSION_MIN_GAP_MS) {
-      const daysLeft = Math.ceil((SUBMISSION_MIN_GAP_MS - elapsedMs) / (24 * 60 * 60 * 1000));
-      throw new ApiError(429, `Please wait ${daysLeft} more day(s) before submitting another guest complaint from this network (minimum 10 days between submissions). Log in to submit under your own account instead.`);
+      throw new ApiError(429, `Please wait ${formatDuration(SUBMISSION_MIN_GAP_MS - elapsedMs)} before submitting another guest complaint from this network (minimum ${formatDuration(SUBMISSION_MIN_GAP_MS)} between submissions). Log in to submit under your own account instead.`);
     }
   }
 
