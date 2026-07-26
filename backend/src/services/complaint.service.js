@@ -37,8 +37,7 @@ async function resolveJurisdictionFromLocation({ districtId, zoneId, townAdminis
 }
 
 const SUBMISSION_MONTHLY_LIMIT = 3;
-// TEMPORARY for testing — revert to `10 * 24 * 60 * 60 * 1000` (10 days) before real use.
-const SUBMISSION_MIN_GAP_MS = 5 * 60 * 1000;
+const SUBMISSION_MIN_GAP_MS = 10 * 24 * 60 * 60 * 1000;
 const SUBMISSION_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
 
 /** Formats a duration in whatever unit reads naturally, so error messages stay honest even when
