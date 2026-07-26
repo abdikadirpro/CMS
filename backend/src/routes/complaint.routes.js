@@ -15,6 +15,7 @@ router.post(
   [
     body("title").trim().notEmpty().withMessage("Title is required"),
     body("description").trim().notEmpty().withMessage("Description is required"),
+    body("guestIdNumber").trim().notEmpty().withMessage("National ID is required"),
     body().custom((_, { req }) => {
       if (!req.body.districtId && !req.body.zoneId && !req.body.townAdministrationId && !req.body.officeId) {
         throw new Error("Select a District, Zone, Town Administration, or Office");

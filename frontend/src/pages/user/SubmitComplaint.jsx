@@ -120,8 +120,9 @@ export default function SubmitComplaint() {
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <Label>ID Number (Optional)</Label>
-              <Input {...register("guestIdNumber")} />
+              <Label>National ID</Label>
+              <Input {...register("guestIdNumber", { required: "National ID is required" })} />
+              <FieldError>{errors.guestIdNumber?.message}</FieldError>
             </div>
             <div>
               <Label>Office / Workplace</Label>
@@ -252,27 +253,14 @@ export default function SubmitComplaint() {
               )}
             </div>
 
-            <div className={locationType === "office" ? "grid grid-cols-1 gap-4" : "grid grid-cols-1 gap-4 sm:grid-cols-2"}>
-              <div>
-                <Label>Complaint Category</Label>
-                <Select {...register("categoryId")}>
-                  <option value="">Select category</option>
-                  {categoriesRes?.data?.map((c) => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
-                </Select>
-              </div>
-              {locationType !== "office" && (
-                <div>
-                  <Label>Submit To (Office/Department)</Label>
-                  <Select {...register("officeId")}>
-                    <option value="">Select office</option>
-                    {officesRes?.data?.map((o) => (
-                      <option key={o.id} value={o.id}>{o.name}</option>
-                    ))}
-                  </Select>
-                </div>
-              )}
+            <div>
+              <Label>Complaint Category</Label>
+              <Select {...register("categoryId")}>
+                <option value="">Select category</option>
+                {categoriesRes?.data?.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </Select>
             </div>
             <div>
               <Label>Landmark / Exact Address (optional)</Label>
