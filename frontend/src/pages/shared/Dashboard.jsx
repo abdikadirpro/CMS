@@ -21,7 +21,7 @@ const BUCKETS = [
   { key: "escalated", label: "Escalated", icon: AlertTriangle, accent: "rose" },
 ];
 
-const PIE_COLORS = ["#00ffef", "#06b6d4", "#0ea5e9", "#14b8a6", "#f59e0b", "#10b981", "#6366f1", "#f43f5e", "#94a3b8", "#ef4444"];
+const PIE_COLORS = ["#3b82f6", "#06b6d4", "#0ea5e9", "#14b8a6", "#f59e0b", "#10b981", "#6366f1", "#f43f5e", "#94a3b8", "#ef4444"];
 
 export default function Dashboard() {
   const { isUser, actor } = useAuth();
@@ -86,7 +86,7 @@ export default function Dashboard() {
                 <XAxis dataKey="category" tick={{ fontSize: 11 }} interval={0} angle={-20} textAnchor="end" height={60} />
                 <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
                 <Tooltip contentStyle={{ background: "#1e293b", border: "1px solid #334155", borderRadius: 8, color: "#f1f5f9" }} />
-                <Bar dataKey="count" fill="#00ffef" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="count" fill="#3b82f6" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           )}
@@ -104,7 +104,7 @@ export default function Dashboard() {
               <XAxis dataKey="date" tick={{ fontSize: 11 }} tickFormatter={(d) => new Date(d).toLocaleDateString(undefined, { month: "short", day: "numeric" })} />
               <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
               <Tooltip contentStyle={{ background: "#1e293b", border: "1px solid #334155", borderRadius: 8, color: "#f1f5f9" }} />
-              <Line type="monotone" dataKey="count" stroke="#00ffef" strokeWidth={2} dot={false} />
+              <Line type="monotone" dataKey="count" stroke="#3b82f6" strokeWidth={2} dot={false} />
             </LineChart>
           </ResponsiveContainer>
         )}

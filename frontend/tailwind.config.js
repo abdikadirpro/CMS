@@ -6,17 +6,17 @@ export default {
     extend: {
       colors: {
         primary: {
-          DEFAULT: "#00ffef",
-          50: "#e6fffd",
-          100: "#b3fffa",
-          200: "#80fff6",
-          300: "#4dfff2",
-          400: "#1affee",
-          500: "#00ffef",
-          600: "#00ccbf",
-          700: "#00998f",
-          800: "#00665f",
-          900: "#003330",
+          DEFAULT: "#3b82f6",
+          50: "#eff6ff",
+          100: "#dbeafe",
+          200: "#bfdbfe",
+          300: "#93c5fd",
+          400: "#60a5fa",
+          500: "#3b82f6",
+          600: "#2563eb",
+          700: "#1d4ed8",
+          800: "#1e40af",
+          900: "#1e3a8a",
         },
         surface: {
           DEFAULT: "#0f172a",
@@ -36,7 +36,7 @@ export default {
         xs: "2px",
       },
       boxShadow: {
-        glow: "0 0 24px rgba(0, 255, 239, 0.25)",
+        glow: "0 0 24px rgba(59, 130, 246, 0.25)",
       },
       keyframes: {
         "fade-in": { "0%": { opacity: 0 }, "100%": { opacity: 1 } },
