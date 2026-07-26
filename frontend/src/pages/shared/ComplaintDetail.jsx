@@ -171,9 +171,10 @@ export default function ComplaintDetail() {
               <Row label="Full Name" value={complaint.guestFullName} />
               <Row label="Email" value={complaint.guestEmail} />
               <Row label="Phone" value={complaint.guestPhone} />
-              <Row label="ID Number" value={complaint.guestIdNumber} />
+              <Row label="National ID" value={complaint.guestIdNumber} />
               <Row label="Office / Workplace" value={complaint.guestOffice} />
               <Row label="Job Position" value={complaint.guestJobTitle} />
+              <Row label="Employee ID" value={complaint.guestEmployeeId} />
             </dl>
           )}
         </div>

@@ -266,12 +266,13 @@ model Complaint {
   isAnonymous Boolean         @default(false)
 
   // guest / anonymous submitter fields (used when isAnonymous or no account)
-  guestFullName String?
-  guestEmail    String?
-  guestPhone    String?
-  guestOffice   String?
-  guestJobTitle String?
-  guestIdNumber String?
+  guestFullName   String?
+  guestEmail      String?
+  guestPhone      String?
+  guestOffice     String?
+  guestJobTitle   String?
+  guestIdNumber   String?
+  guestEmployeeId String?
 
   submitterId String?
   submitter   User?   @relation(fields: [submitterId], references: [id])

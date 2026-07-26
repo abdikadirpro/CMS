@@ -43,6 +43,7 @@ async function create(req, res, next) {
       guestOffice,
       guestJobTitle,
       guestIdNumber,
+      guestEmployeeId,
     } = req.body;
 
     // "Where did this happen?" is satisfied by a District, Zone, or Town Administration — or,
@@ -96,6 +97,7 @@ async function create(req, res, next) {
         guestOffice,
         guestJobTitle,
         guestIdNumber,
+        guestEmployeeId,
         ...jurisdiction,
         attachments: {
           create: files.map((f) => ({

@@ -65,6 +65,7 @@ export default function SubmitComplaint() {
     formData.append("guestOffice", values.guestOffice || "");
     formData.append("guestJobTitle", values.guestJobTitle || "");
     formData.append("guestIdNumber", values.guestIdNumber || "");
+    formData.append("guestEmployeeId", values.guestEmployeeId || "");
     if (!isIdentifiedAccount) {
       formData.append("guestFullName", values.guestFullName || "");
       formData.append("guestEmail", values.guestEmail || "");
@@ -131,6 +132,10 @@ export default function SubmitComplaint() {
             <div>
               <Label>Job Position</Label>
               <Input {...register("guestJobTitle")} />
+            </div>
+            <div>
+              <Label>Employee ID (Optional)</Label>
+              <Input {...register("guestEmployeeId")} />
             </div>
           </div>
         </Card>
