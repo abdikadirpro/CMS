@@ -70,12 +70,19 @@ async function dashboard(req, res, next) {
 
 async function globalOverview(req, res, next) {
   try {
-    const [zoneBreakdown, adminCounts, userCount, complaintCount] = await Promise.all([
-      prisma.complaint.groupBy({ by: ["zoneId"], _count: { _all: true } }),
-      prisma.admin.groupBy({ by: ["adminType"], _count: { _all: true } }),
-      prisma.user.count(),
-      prisma.complaint.count(),
-    ]);
+    const [zoneBreakdown, adminCounts, userCount, complaintCount, zoneCount, districtCount, townAdministrationCount, officeCount] =
+      await Promise.all([
+        prisma.complaint.groupBy({ by: ["zoneId"], _count: { _all: true } }),
+        prisma.admin.groupBy({ by: ["adminType"], _count: { _all: true } }),
+        prisma.user.count(),
+        prisma.complaint.count(),
+        // Counted directly rather than derived from the complaint groupBy above, which would
+        // silently undercount — a zone/district/etc. with zero complaints so far still exists.
+        prisma.zone.count(),
+        prisma.district.count(),
+        prisma.townAdministration.count(),
+        prisma.office.count(),
+      ]);
 
     const zones = await prisma.zone.findMany();
     const zoneLabelMap = Object.fromEntries(zones.map((z) => [z.id, z.name]));
@@ -84,6 +91,10 @@ async function globalOverview(req, res, next) {
       data: {
         userCount,
         complaintCount,
+        zoneCount,
+        districtCount,
+        townAdministrationCount,
+        officeCount,
         adminCounts: Object.fromEntries(adminCounts.map((a) => [a.adminType, a._count._all])),
         zoneBreakdown: zoneBreakdown.map((row) => ({
           zone: row.zoneId ? zoneLabelMap[row.zoneId] || "Unknown" : "Unassigned",

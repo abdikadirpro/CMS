@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from "recharts";
-import { Users, ClipboardList, Shield, Globe, BarChart3 } from "lucide-react";
+import { Users, ClipboardList, Shield, Globe, BarChart3, MapPin, Landmark, Building2 } from "lucide-react";
 import { StatCard } from "../../components/ui/StatCard";
 import { Card, CardHeader, CardTitle } from "../../components/ui/Card";
 import { SkeletonCard } from "../../components/ui/Skeleton";
@@ -26,7 +26,13 @@ export default function GlobalDashboard() {
             <StatCard label="Total Complaints" value={stats.complaintCount} icon={ClipboardList} accent="primary" />
             <StatCard label="Registered Citizens" value={stats.userCount} icon={Users} accent="sky" />
             <StatCard label="Total Admins" value={Object.values(stats.adminCounts).reduce((a, b) => a + b, 0)} icon={Shield} accent="emerald" />
-            <StatCard label="Zones Covered" value={stats.zoneBreakdown.length} icon={Globe} accent="indigo" />
+            <StatCard label="Zones" value={stats.zoneCount} icon={Globe} accent="indigo" />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+            <StatCard label="Districts" value={stats.districtCount} icon={MapPin} accent="sky" />
+            <StatCard label="Town Administrations" value={stats.townAdministrationCount} icon={Landmark} accent="amber" />
+            <StatCard label="Offices" value={stats.officeCount} icon={Building2} accent="primary" />
           </div>
 
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">

@@ -14,6 +14,16 @@ const {
 const { logActivity } = require("../services/activityLog.service");
 const { sendOtpEmail, sendPasswordResetEmail } = require("../services/email.service");
 
+// Attaches the admin's organization name(s) — and, for a District Admin, their parent Zone's name
+// too — so the dashboard can show "District: X / Zone: Y" etc. without a second round-trip. Plain
+// scoping (RBAC filtering by districtId/zoneId/etc.) never needed this; it only matters for display.
+const ADMIN_ORG_INCLUDE = {
+  zone: { select: { id: true, name: true } },
+  district: { select: { id: true, name: true, zone: { select: { id: true, name: true } } } },
+  townAdministration: { select: { id: true, name: true } },
+  office: { select: { id: true, name: true } },
+};
+
 const REFRESH_COOKIE_NAME = "cms_refresh_token";
 const REFRESH_COOKIE_OPTIONS = {
   httpOnly: true,
@@ -110,7 +120,7 @@ async function login(req, res, next) {
   try {
     const { email, password } = req.body;
 
-    let actor = await prisma.admin.findUnique({ where: { email } });
+    let actor = await prisma.admin.findUnique({ where: { email }, include: ADMIN_ORG_INCLUDE });
     let actorType = "ADMIN";
     if (!actor) {
       actor = await prisma.user.findUnique({ where: { email } });
@@ -218,8 +228,13 @@ async function logout(req, res, next) {
 
 async function me(req, res, next) {
   try {
-    const sanitized = req.actor.type === "ADMIN" ? sanitizeAdmin(req.actor) : sanitizeUser(req.actor);
-    return success(res, { data: { actor: sanitized } });
+    if (req.actor.type === "ADMIN") {
+      // req.actor (from the auth middleware) is a lean fetch with no relations, since RBAC scoping
+      // only needs the raw FK columns already on it — re-fetch with names included just for display.
+      const admin = await prisma.admin.findUnique({ where: { id: req.actor.id }, include: ADMIN_ORG_INCLUDE });
+      return success(res, { data: { actor: sanitizeAdmin(admin) } });
+    }
+    return success(res, { data: { actor: sanitizeUser(req.actor) } });
   } catch (err) {
     next(err);
   }

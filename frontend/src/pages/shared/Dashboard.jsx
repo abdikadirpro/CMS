@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid, LineChart, Line, Legend } from "recharts";
 import {
   Clock, Activity, Hourglass, CheckCircle2, Archive, ArrowLeftRight, XCircle, AlertTriangle, FilePlus, ClipboardList,
+  MapPin, Landmark, Building2, UserRound,
 } from "lucide-react";
 import { StatCard } from "../../components/ui/StatCard";
 import { Card, CardHeader, CardTitle } from "../../components/ui/Card";
@@ -9,6 +10,56 @@ import { SkeletonCard } from "../../components/ui/Skeleton";
 import Button from "../../components/ui/Button";
 import { useGetDashboardAnalyticsQuery } from "../../app/api/analyticsApi";
 import { useAuth } from "../../hooks/useAuth";
+
+/**
+ * The org-context chips shown per admin tier — driven entirely by adminType, since that's what
+ * decides which relation (zone/district/townAdministration/office) is actually populated on the
+ * actor. District Admins get their parent Zone alongside their District; the rest pair their own
+ * organization with the administrator's name.
+ */
+function orgContextItems(actor) {
+  if (!actor || actor.type !== "ADMIN") return [];
+  switch (actor.adminType) {
+    case "DISTRICT_ADMIN":
+      return [
+        { icon: MapPin, label: "District", value: actor.district?.name },
+        { icon: Landmark, label: "Zone", value: actor.district?.zone?.name },
+      ];
+    case "ZONE_ADMIN":
+      return [
+        { icon: Landmark, label: "Zone", value: actor.zone?.name },
+        { icon: UserRound, label: "Administrator", value: actor.fullName },
+      ];
+    case "OFFICE_ADMIN":
+      return [
+        { icon: Building2, label: "Office", value: actor.office?.name },
+        { icon: UserRound, label: "Administrator", value: actor.fullName },
+      ];
+    case "TOWN_ADMIN":
+      return [
+        { icon: Building2, label: "Council", value: actor.townAdministration?.name },
+        { icon: UserRound, label: "Administrator", value: actor.fullName },
+      ];
+    default:
+      return [];
+  }
+}
+
+function OrgContextBar({ actor }) {
+  const items = orgContextItems(actor).filter((i) => i.value);
+  if (items.length === 0) return null;
+  return (
+    <div className="flex flex-wrap gap-3">
+      {items.map(({ icon: Icon, label, value }) => (
+        <div key={label} className="flex items-center gap-2 rounded-lg border border-[rgb(var(--border))] bg-[rgb(var(--bg-alt))] px-3 py-1.5 text-sm">
+          <Icon className="h-4 w-4 text-primary" />
+          <span className="text-[rgb(var(--fg-muted))]">{label}:</span>
+          <span className="font-medium">{value}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 const BUCKETS = [
   { key: "pending", label: "Pending", icon: Clock, accent: "sky" },
@@ -50,6 +101,8 @@ export default function Dashboard() {
           </Link>
         )}
       </div>
+
+      <OrgContextBar actor={actor} />
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
         {BUCKETS.map((b) => (
