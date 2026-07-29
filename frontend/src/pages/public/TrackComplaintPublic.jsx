@@ -1,13 +1,80 @@
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useSearchParams } from "react-router-dom";
-import { Search, FileSearch } from "lucide-react";
+import { Search, FileSearch, Clock, Activity, Hourglass, CheckCircle2, XCircle, Check } from "lucide-react";
 import { Input, FieldError } from "../../components/ui/Input";
 import Button from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
 import { StatusBadge } from "../../components/ui/Badge";
 import { useLazyTrackComplaintQuery } from "../../app/api/complaintsApi";
 import { formatDateTime } from "../../lib/utils";
+
+// The citizen-facing journey has 4 stages. Transferred/Escalated aren't separate stages here —
+// the complaint is still actively being handled, just moved administratively — so both read as
+// "In Progress" on this simplified tracker. Rejected is a terminal outcome off the main path,
+// not a stage the complaint "passes through", so it's shown as its own state instead of a step.
+const STAGES = [
+  { key: "PENDING", label: "Pending", icon: Clock },
+  { key: "IN_PROGRESS", label: "In Progress", icon: Activity },
+  { key: "WAITING", label: "Waiting", icon: Hourglass },
+  { key: "SOLVED", label: "Solved", icon: CheckCircle2 },
+];
+
+function stageIndexForStatus(status) {
+  if (status === "TRANSFERRED" || status === "ESCALATED") return 1; // In Progress
+  const idx = STAGES.findIndex((s) => s.key === status);
+  return idx === -1 ? 0 : idx;
+}
+
+function StageTracker({ status }) {
+  if (status === "REJECTED") {
+    return (
+      <div className="flex items-center gap-3 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3">
+        <XCircle className="h-6 w-6 shrink-0 text-rose-400" />
+        <div>
+          <p className="text-sm font-semibold text-rose-400">Complaint Rejected</p>
+          <p className="text-xs text-[rgb(var(--fg-muted))]">See the status history below for the reason given.</p>
+        </div>
+      </div>
+    );
+  }
+
+  const currentIndex = stageIndexForStatus(status);
+
+  return (
+    <div className="flex items-start">
+      {STAGES.map((stage, i) => {
+        const isComplete = i < currentIndex || status === "SOLVED";
+        const isCurrent = i === currentIndex && status !== "SOLVED";
+        const isLast = i === STAGES.length - 1;
+        const Icon = stage.icon;
+        return (
+          <div key={stage.key} className={`flex flex-col items-center ${isLast ? "" : "flex-1"}`}>
+            <div className="flex w-full items-center">
+              <div
+                className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 transition-colors ${
+                  isComplete
+                    ? "border-primary bg-primary text-surface"
+                    : isCurrent
+                    ? "border-primary bg-primary/10 text-primary"
+                    : "border-[rgb(var(--border))] bg-[rgb(var(--bg-alt))] text-[rgb(var(--fg-muted))]"
+                }`}
+              >
+                {isComplete ? <Check className="h-4 w-4" /> : <Icon className="h-4 w-4" />}
+              </div>
+              {!isLast && (
+                <div className={`mx-1.5 h-0.5 flex-1 ${i < currentIndex ? "bg-primary" : "bg-[rgb(var(--border))]"}`} />
+              )}
+            </div>
+            <span className={`mt-1.5 text-center text-xs font-medium ${isCurrent || isComplete ? "text-[rgb(var(--fg))]" : "text-[rgb(var(--fg-muted))]"}`}>
+              {stage.label}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 export default function TrackComplaintPublic() {
   const [searchParams] = useSearchParams();
@@ -65,6 +132,10 @@ export default function TrackComplaintPublic() {
             <StatusBadge status={complaint.status} />
           </div>
           <p className="text-sm text-[rgb(var(--fg-muted))]">{complaint.description}</p>
+
+          <div className="mt-6 border-t border-[rgb(var(--border))] pt-6">
+            <StageTracker status={complaint.status} />
+          </div>
 
           <div className="mt-6">
             <h4 className="mb-3 text-sm font-semibold">Status History</h4>

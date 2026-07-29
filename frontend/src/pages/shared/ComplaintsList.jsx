@@ -11,7 +11,7 @@ import { useGetComplaintsQuery } from "../../app/api/complaintsApi";
 import { useAuth } from "../../hooks/useAuth";
 import { formatDate } from "../../lib/utils";
 
-const STATUSES = ["PENDING", "UNDER_REVIEW", "ASSIGNED", "IN_PROGRESS", "WAITING", "SOLVED", "CLOSED", "TRANSFERRED", "REJECTED", "ESCALATED"];
+const STATUSES = ["PENDING", "IN_PROGRESS", "WAITING", "SOLVED", "TRANSFERRED", "REJECTED", "ESCALATED"];
 
 export default function ComplaintsList() {
   const { isAdmin } = useAuth();

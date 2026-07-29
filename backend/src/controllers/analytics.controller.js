@@ -41,7 +41,7 @@ async function dashboard(req, res, next) {
     });
 
     const buckets = {
-      pending: 0, active: 0, waiting: 0, solved: 0, closed: 0, transferred: 0, rejected: 0, escalated: 0,
+      pending: 0, inProgress: 0, waiting: 0, solved: 0, transferred: 0, rejected: 0, escalated: 0,
     };
     Object.entries(statusMap).forEach(([status, count]) => {
       buckets[STATUS_BUCKET_MAP[status]] += count;

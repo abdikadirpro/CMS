@@ -311,10 +311,10 @@ async function assign(req, res, next) {
       where: { id: complaint.id },
       data: {
         assignedAdminId: adminId,
-        status: "ASSIGNED",
+        status: "IN_PROGRESS",
         lastFeedbackAt: new Date(),
         statusHistory: {
-          create: { fromStatus: complaint.status, toStatus: "ASSIGNED", changedById: req.actor.id, changedByType: "ADMIN", reason: "Assigned to admin" },
+          create: { fromStatus: complaint.status, toStatus: "IN_PROGRESS", changedById: req.actor.id, changedByType: "ADMIN", reason: "Assigned to admin" },
         },
       },
     });

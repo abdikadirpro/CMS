@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid, LineChart, Line, Legend } from "recharts";
 import {
-  Clock, Activity, Hourglass, CheckCircle2, Archive, ArrowLeftRight, XCircle, AlertTriangle, FilePlus, ClipboardList,
+  Clock, Activity, Hourglass, CheckCircle2, ArrowLeftRight, XCircle, AlertTriangle, FilePlus, ClipboardList,
   MapPin, Landmark, Building2, UserRound, Ticket,
 } from "lucide-react";
 import { StatCard } from "../../components/ui/StatCard";
@@ -99,10 +99,9 @@ function TokenStatusCard({ tokens }) {
 
 const BUCKETS = [
   { key: "pending", label: "Pending", icon: Clock, accent: "sky" },
-  { key: "active", label: "Active", icon: Activity, accent: "primary" },
+  { key: "inProgress", label: "In Progress", icon: Activity, accent: "primary" },
   { key: "waiting", label: "Waiting", icon: Hourglass, accent: "amber" },
   { key: "solved", label: "Solved", icon: CheckCircle2, accent: "emerald" },
-  { key: "closed", label: "Closed", icon: Archive, accent: "indigo" },
   { key: "transferred", label: "Transferred", icon: ArrowLeftRight, accent: "sky" },
   { key: "rejected", label: "Rejected", icon: XCircle, accent: "rose" },
   { key: "escalated", label: "Escalated", icon: AlertTriangle, accent: "rose" },

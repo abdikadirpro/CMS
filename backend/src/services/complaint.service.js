@@ -149,7 +149,7 @@ async function assertGuestSubmissionAllowed(ipAddress) {
 }
 
 const ESCALATION_WINDOW_MS = 10 * 24 * 60 * 60 * 1000;
-const ESCALATION_TERMINAL_STATUSES = new Set(["SOLVED", "CLOSED", "REJECTED"]);
+const ESCALATION_TERMINAL_STATUSES = new Set(["SOLVED", "REJECTED"]);
 
 /**
  * The next hierarchy level a complaint can escalate to. `escalatedTo` tracks the level it has
@@ -180,12 +180,9 @@ function getEscalationStatus(complaint) {
 
 const STATUS_BUCKET_MAP = {
   PENDING: "pending",
-  UNDER_REVIEW: "active",
-  ASSIGNED: "active",
-  IN_PROGRESS: "active",
+  IN_PROGRESS: "inProgress",
   WAITING: "waiting",
   SOLVED: "solved",
-  CLOSED: "closed",
   TRANSFERRED: "transferred",
   REJECTED: "rejected",
   ESCALATED: "escalated",

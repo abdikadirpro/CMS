@@ -36,10 +36,7 @@ router.patch(
   "/:id/status",
   authenticate,
   authorize(),
-  [body("status").isIn([
-    "PENDING", "UNDER_REVIEW", "ASSIGNED", "IN_PROGRESS", "WAITING",
-    "SOLVED", "CLOSED", "TRANSFERRED", "REJECTED", "ESCALATED",
-  ])],
+  [body("status").isIn(["PENDING", "IN_PROGRESS", "WAITING", "SOLVED", "TRANSFERRED", "REJECTED", "ESCALATED"])],
   validate,
   ctrl.updateStatus
 );
