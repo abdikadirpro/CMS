@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useSearchParams } from "react-router-dom";
-import { Search, FileSearch, Clock, Activity, Hourglass, CheckCircle2, XCircle, Check } from "lucide-react";
+import { Search, FileSearch, XCircle, Check } from "lucide-react";
 import { Input, FieldError } from "../../components/ui/Input";
 import Button from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
@@ -14,10 +14,10 @@ import { formatDateTime } from "../../lib/utils";
 // "In Progress" on this simplified tracker. Rejected is a terminal outcome off the main path,
 // not a stage the complaint "passes through", so it's shown as its own state instead of a step.
 const STAGES = [
-  { key: "PENDING", label: "Pending", icon: Clock },
-  { key: "IN_PROGRESS", label: "In Progress", icon: Activity },
-  { key: "WAITING", label: "Waiting", icon: Hourglass },
-  { key: "SOLVED", label: "Solved", icon: CheckCircle2 },
+  { key: "PENDING", label: "Pending" },
+  { key: "IN_PROGRESS", label: "In Progress" },
+  { key: "WAITING", label: "Waiting" },
+  { key: "SOLVED", label: "Solved" },
 ];
 
 function stageIndexForStatus(status) {
@@ -26,7 +26,12 @@ function stageIndexForStatus(status) {
   return idx === -1 ? 0 : idx;
 }
 
-function StageTracker({ status }) {
+function daysSince(date) {
+  const ms = Date.now() - new Date(date).getTime();
+  return Math.max(0, Math.floor(ms / (24 * 60 * 60 * 1000)));
+}
+
+function StageTracker({ status, createdAt }) {
   if (status === "REJECTED") {
     return (
       <div className="flex items-center gap-3 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3">
@@ -40,38 +45,47 @@ function StageTracker({ status }) {
   }
 
   const currentIndex = stageIndexForStatus(status);
+  const solved = status === "SOLVED";
+  const progressPct = Math.round(((currentIndex + 1) / STAGES.length) * 100);
 
   return (
-    <div className="flex items-start">
-      {STAGES.map((stage, i) => {
-        const isComplete = i < currentIndex || status === "SOLVED";
-        const isCurrent = i === currentIndex && status !== "SOLVED";
-        const isLast = i === STAGES.length - 1;
-        const Icon = stage.icon;
-        return (
-          <div key={stage.key} className={`flex flex-col items-center ${isLast ? "" : "flex-1"}`}>
-            <div className="flex w-full items-center">
-              <div
-                className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 transition-colors ${
-                  isComplete
-                    ? "border-primary bg-primary text-surface"
-                    : isCurrent
-                    ? "border-primary bg-primary/10 text-primary"
-                    : "border-[rgb(var(--border))] bg-[rgb(var(--bg-alt))] text-[rgb(var(--fg-muted))]"
-                }`}
-              >
-                {isComplete ? <Check className="h-4 w-4" /> : <Icon className="h-4 w-4" />}
+    <div>
+      <div className="mb-6 flex items-center justify-between text-sm">
+        <span className="text-[rgb(var(--fg-muted))]">
+          Progress: <span className="font-bold text-[rgb(var(--fg))] underline decoration-primary/40 underline-offset-2">{progressPct}%</span>
+        </span>
+        <span className="text-[rgb(var(--fg-muted))]">
+          Days Open: <span className="font-bold text-[rgb(var(--fg))] underline decoration-primary/40 underline-offset-2">{daysSince(createdAt)}</span>
+        </span>
+      </div>
+
+      <div className="flex items-start">
+        {STAGES.map((stage, i) => {
+          const isReached = i <= currentIndex || solved;
+          const isLast = i === STAGES.length - 1;
+          return (
+            <div key={stage.key} className={`flex flex-col items-center ${isLast ? "" : "flex-1"}`}>
+              <div className="flex w-full items-center">
+                <div
+                  className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full border-2 transition-colors ${
+                    isReached
+                      ? "border-primary bg-primary text-surface"
+                      : "border-[rgb(var(--border))] bg-[rgb(var(--bg-alt))] text-[rgb(var(--fg-muted))]"
+                  }`}
+                >
+                  <Check className="h-5 w-5" strokeWidth={3} />
+                </div>
+                {!isLast && (
+                  <div className={`mx-1 h-1 flex-1 rounded-full ${i < currentIndex || solved ? "bg-primary" : "bg-[rgb(var(--border))]"}`} />
+                )}
               </div>
-              {!isLast && (
-                <div className={`mx-1.5 h-0.5 flex-1 ${i < currentIndex ? "bg-primary" : "bg-[rgb(var(--border))]"}`} />
-              )}
+              <span className={`mt-2 text-center text-xs font-semibold ${isReached ? "text-[rgb(var(--fg))]" : "text-[rgb(var(--fg-muted))]"}`}>
+                {stage.label}
+              </span>
             </div>
-            <span className={`mt-1.5 text-center text-xs font-medium ${isCurrent || isComplete ? "text-[rgb(var(--fg))]" : "text-[rgb(var(--fg-muted))]"}`}>
-              {stage.label}
-            </span>
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -134,7 +148,7 @@ export default function TrackComplaintPublic() {
           <p className="text-sm text-[rgb(var(--fg-muted))]">{complaint.description}</p>
 
           <div className="mt-6 border-t border-[rgb(var(--border))] pt-6">
-            <StageTracker status={complaint.status} />
+            <StageTracker status={complaint.status} createdAt={complaint.createdAt} />
           </div>
 
           <div className="mt-6">
