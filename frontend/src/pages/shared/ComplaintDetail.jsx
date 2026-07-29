@@ -17,10 +17,7 @@ import { useGetAdminDirectoryQuery } from "../../app/api/adminApi";
 import { useAuth } from "../../hooks/useAuth";
 import { formatDateTime } from "../../lib/utils";
 
-// Transferred/Escalated are intentionally not offered here — they carry side effects (jurisdiction
-// changes, notifications) that only the dedicated Transfer button and the citizen's Escalate action
-// perform correctly; picking them from this generic dropdown would just mislabel the status.
-const STATUSES = ["PENDING", "IN_PROGRESS", "WAITING", "SOLVED", "REJECTED"];
+const STATUSES = ["PENDING", "IN_PROGRESS", "WAITING", "SOLVED", "REJECTED", "TRANSFERRED", "ESCALATED"];
 
 const ESCALATION_LEVEL_LABELS = { ZONE_ADMIN: "Zone", SUPER_ADMIN: "Regional level (Super Admin)" };
 
