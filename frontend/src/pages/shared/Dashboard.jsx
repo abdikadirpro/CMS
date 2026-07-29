@@ -68,16 +68,21 @@ function OrgContextBar({ actor }) {
  */
 function TokenStatusCard({ tokens }) {
   if (!tokens) return null;
+  const exhausted = tokens.remaining === 0;
   const dots = Array.from({ length: tokens.limit }, (_, i) => i < tokens.used);
   return (
-    <Card className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+    <Card className={`flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between ${exhausted ? "border-rose-500/30 bg-rose-500/5" : ""}`}>
       <div className="flex items-center gap-3">
-        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-primary/20 bg-primary/10 text-primary">
+        <div
+          className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border ${
+            exhausted ? "border-rose-500/30 bg-rose-500/10 text-rose-400" : "border-primary/20 bg-primary/10 text-primary"
+          }`}
+        >
           <Ticket className="h-5 w-5" />
         </div>
         <div>
           <p className="text-sm font-semibold">Complaint Tokens</p>
-          <p className="text-xs text-[rgb(var(--fg-muted))]">
+          <p className={`text-xs ${exhausted ? "font-medium text-rose-400" : "text-[rgb(var(--fg-muted))]"}`}>
             {Math.min(tokens.used, tokens.limit)} of {tokens.limit} used this month
             {!tokens.canSubmitNow && tokens.nextEligibleAt && <> · next available {formatDateTime(tokens.nextEligibleAt)}</>}
           </p>
@@ -87,11 +92,15 @@ function TokenStatusCard({ tokens }) {
         {dots.map((filled, i) => (
           <span
             key={i}
-            className={`h-2.5 w-2.5 rounded-full ${filled ? "bg-primary" : "border-2 border-[rgb(var(--fg-muted))]/40"}`}
+            className={`h-2.5 w-2.5 rounded-full ${
+              filled ? (exhausted ? "bg-rose-400" : "bg-primary") : "border-2 border-[rgb(var(--fg-muted))]/40"
+            }`}
             aria-hidden="true"
           />
         ))}
-        <span className="ml-1 text-xs font-medium text-[rgb(var(--fg-muted))]">{tokens.remaining} remaining</span>
+        <span className={`ml-1 text-xs font-semibold ${exhausted ? "text-rose-400" : "text-[rgb(var(--fg-muted))]"}`}>
+          {tokens.remaining} remaining
+        </span>
       </div>
     </Card>
   );
