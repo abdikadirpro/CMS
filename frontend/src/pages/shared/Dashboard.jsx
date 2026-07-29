@@ -2,7 +2,7 @@ import { Link } from "react-router-dom";
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid, LineChart, Line, Legend } from "recharts";
 import {
   Clock, Activity, Hourglass, CheckCircle2, Archive, ArrowLeftRight, XCircle, AlertTriangle, FilePlus, ClipboardList,
-  MapPin, Landmark, Building2, UserRound,
+  MapPin, Landmark, Building2, UserRound, Ticket,
 } from "lucide-react";
 import { StatCard } from "../../components/ui/StatCard";
 import { Card, CardHeader, CardTitle } from "../../components/ui/Card";
@@ -10,6 +10,7 @@ import { SkeletonCard } from "../../components/ui/Skeleton";
 import Button from "../../components/ui/Button";
 import { useGetDashboardAnalyticsQuery } from "../../app/api/analyticsApi";
 import { useAuth } from "../../hooks/useAuth";
+import { formatDateTime } from "../../lib/utils";
 
 /**
  * The org-context chips shown per admin tier — driven entirely by adminType, since that's what
@@ -61,6 +62,41 @@ function OrgContextBar({ actor }) {
   );
 }
 
+/**
+ * A citizen's complaint-submission "tokens": 3 per rolling 30 days, at least 10 days apart.
+ * Mirrors exactly what the backend enforces (assertSubmissionAllowed) — this is read-only display.
+ */
+function TokenStatusCard({ tokens }) {
+  if (!tokens) return null;
+  const dots = Array.from({ length: tokens.limit }, (_, i) => i < tokens.used);
+  return (
+    <Card className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex items-center gap-3">
+        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-primary/20 bg-primary/10 text-primary">
+          <Ticket className="h-5 w-5" />
+        </div>
+        <div>
+          <p className="text-sm font-semibold">Complaint Tokens</p>
+          <p className="text-xs text-[rgb(var(--fg-muted))]">
+            {Math.min(tokens.used, tokens.limit)} of {tokens.limit} used this month
+            {!tokens.canSubmitNow && tokens.nextEligibleAt && <> · next available {formatDateTime(tokens.nextEligibleAt)}</>}
+          </p>
+        </div>
+      </div>
+      <div className="flex items-center gap-1.5">
+        {dots.map((filled, i) => (
+          <span
+            key={i}
+            className={`h-2.5 w-2.5 rounded-full ${filled ? "bg-primary" : "border-2 border-[rgb(var(--fg-muted))]/40"}`}
+            aria-hidden="true"
+          />
+        ))}
+        <span className="ml-1 text-xs font-medium text-[rgb(var(--fg-muted))]">{tokens.remaining} remaining</span>
+      </div>
+    </Card>
+  );
+}
+
 const BUCKETS = [
   { key: "pending", label: "Pending", icon: Clock, accent: "sky" },
   { key: "active", label: "Active", icon: Activity, accent: "primary" },
@@ -103,6 +139,7 @@ export default function Dashboard() {
       </div>
 
       <OrgContextBar actor={actor} />
+      {isUser && <TokenStatusCard tokens={stats.tokens} />}
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
         {BUCKETS.map((b) => (

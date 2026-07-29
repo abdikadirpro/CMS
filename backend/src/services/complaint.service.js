@@ -82,6 +82,42 @@ async function assertSubmissionAllowed(userId) {
 }
 
 /**
+ * Read-only view of a citizen's current submission "tokens" — how many of their 3 monthly slots
+ * are used, how many remain, and (if blocked right now) when the next one opens up. Mirrors the
+ * exact two rules assertSubmissionAllowed enforces, but never throws — this is for display only.
+ */
+async function getSubmissionTokenStatus(userId) {
+  const windowStart = new Date(Date.now() - SUBMISSION_WINDOW_MS);
+  const recent = await prisma.activityLog.findMany({
+    where: { actorId: userId, actorType: "USER", action: "COMPLAINT_CREATED", createdAt: { gte: windowStart } },
+    orderBy: { createdAt: "asc" },
+    select: { createdAt: true },
+  });
+
+  const used = recent.length;
+  const remaining = Math.max(0, SUBMISSION_MONTHLY_LIMIT - used);
+  const last = recent[recent.length - 1] ?? null;
+  const gapEligibleAt = last ? new Date(last.createdAt.getTime() + SUBMISSION_MIN_GAP_MS) : null;
+  const withinGap = Boolean(gapEligibleAt && gapEligibleAt > new Date());
+
+  let nextEligibleAt = null;
+  if (withinGap) {
+    nextEligibleAt = gapEligibleAt;
+  } else if (remaining === 0) {
+    // The monthly cap frees up when the oldest counted submission ages out of the rolling window.
+    nextEligibleAt = new Date(recent[0].createdAt.getTime() + SUBMISSION_WINDOW_MS);
+  }
+
+  return {
+    used,
+    limit: SUBMISSION_MONTHLY_LIMIT,
+    remaining,
+    canSubmitNow: remaining > 0 && !withinGap,
+    nextEligibleAt,
+  };
+}
+
+/**
  * Same 10-day-gap / 3-per-month cap as assertSubmissionAllowed, but for guest (not logged in)
  * submissions, keyed by IP address since there's no account to check. Deliberately scoped to
  * guest activity only (actorId: null) so it never collides with an authenticated citizen's own
@@ -161,6 +197,7 @@ module.exports = {
   STATUS_BUCKET_MAP,
   assertSubmissionAllowed,
   assertGuestSubmissionAllowed,
+  getSubmissionTokenStatus,
   getEscalationStatus,
   getNextEscalationLevel,
 };

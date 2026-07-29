@@ -2,7 +2,7 @@ const { Prisma } = require("@prisma/client");
 const prisma = require("../config/db");
 const { success } = require("../utils/apiResponse");
 const { scopeForAdmin } = require("../middleware/rbac");
-const { STATUS_BUCKET_MAP } = require("../services/complaint.service");
+const { STATUS_BUCKET_MAP, getSubmissionTokenStatus } = require("../services/complaint.service");
 
 const ALL_STATUSES = Object.keys(STATUS_BUCKET_MAP);
 
@@ -54,6 +54,8 @@ async function dashboard(req, res, next) {
       count: row._count._all,
     }));
 
+    const tokens = req.actor.type === "USER" ? await getSubmissionTokenStatus(req.actor.id) : undefined;
+
     return success(res, {
       data: {
         total,
@@ -61,6 +63,7 @@ async function dashboard(req, res, next) {
         caseBuckets: buckets,
         categoryBreakdown,
         trend: last30Days,
+        tokens,
       },
     });
   } catch (err) {
