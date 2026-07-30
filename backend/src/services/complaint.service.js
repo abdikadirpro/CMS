@@ -150,6 +150,7 @@ async function assertGuestSubmissionAllowed(ipAddress) {
 
 const ESCALATION_WINDOW_MS = 10 * 24 * 60 * 60 * 1000;
 const ESCALATION_TERMINAL_STATUSES = new Set(["SOLVED", "REJECTED"]);
+const SATISFACTION_REJECTION_THRESHOLD = 3;
 
 /**
  * The next hierarchy level a complaint can escalate to. `escalatedTo` tracks the level it has
@@ -165,17 +166,27 @@ function getNextEscalationLevel(complaint) {
 }
 
 /**
- * Computes whether the complaint's submitter can escalate it right now: 10 days must have
- * passed since it arrived at its current handling level, with no admin status change since.
+ * Computes whether the complaint's submitter can escalate it right now. Two independent paths
+ * unlock escalation: 10 days have passed since it arrived at its current handling level with no
+ * admin response, OR the citizen has rejected a SOLVED resolution at this level 3+ times
+ * (satisfactionRejections, see rejectResolution in complaint.controller.js).
  */
 function getEscalationStatus(complaint) {
   const nextLevel = getNextEscalationLevel(complaint);
   if (!nextLevel || ESCALATION_TERMINAL_STATUSES.has(complaint.status)) {
-    return { canEscalate: false, nextLevel: null, eligibleAt: null, hasFeedback: false };
+    return { canEscalate: false, nextLevel: null, eligibleAt: null, hasFeedback: false, dissatisfactionEligible: false };
   }
   const eligibleAt = new Date(complaint.currentLevelEnteredAt.getTime() + ESCALATION_WINDOW_MS);
   const hasFeedback = Boolean(complaint.lastFeedbackAt);
-  return { canEscalate: !hasFeedback && Date.now() >= eligibleAt.getTime(), nextLevel, eligibleAt, hasFeedback };
+  const timeEligible = Date.now() >= eligibleAt.getTime();
+  const dissatisfactionEligible = complaint.satisfactionRejections >= SATISFACTION_REJECTION_THRESHOLD;
+  return {
+    canEscalate: !hasFeedback && (timeEligible || dissatisfactionEligible),
+    nextLevel,
+    eligibleAt,
+    hasFeedback,
+    dissatisfactionEligible,
+  };
 }
 
 const STATUS_BUCKET_MAP = {
@@ -197,4 +208,5 @@ module.exports = {
   getSubmissionTokenStatus,
   getEscalationStatus,
   getNextEscalationLevel,
+  SATISFACTION_REJECTION_THRESHOLD,
 };

@@ -6,6 +6,7 @@ const {
   assertSubmissionAllowed,
   assertGuestSubmissionAllowed,
   getEscalationStatus,
+  SATISFACTION_REJECTION_THRESHOLD,
 } = require("../services/complaint.service");
 const { scopeForAdmin } = require("../middleware/rbac");
 const { isValidTransferTarget } = require("../services/jurisdiction.service");
@@ -146,7 +147,7 @@ async function create(req, res, next) {
 
 async function list(req, res, next) {
   try {
-    const { status, categoryId, search, page = 1, pageSize = 20 } = req.query;
+    const { status, categoryId, search, zoneId, districtId, townAdministrationId, officeId, page = 1, pageSize = 20 } = req.query;
     const take = Math.min(parseInt(pageSize, 10) || 20, 100);
     const skip = (Math.max(parseInt(page, 10) || 1, 1) - 1) * take;
 
@@ -159,6 +160,12 @@ async function list(req, res, next) {
 
     if (status) where.status = status;
     if (categoryId) where.categoryId = categoryId;
+    // Only apply a client-supplied jurisdiction filter when it isn't already fixed by the
+    // admin's own scope, so an admin can narrow within their jurisdiction but never escape it.
+    if (zoneId && !where.zoneId) where.zoneId = zoneId;
+    if (districtId && !where.districtId) where.districtId = districtId;
+    if (townAdministrationId && !where.townAdministrationId) where.townAdministrationId = townAdministrationId;
+    if (officeId && !where.officeId) where.officeId = officeId;
     if (search) {
       where.OR = [
         { title: { contains: search, mode: "insensitive" } },
@@ -170,7 +177,14 @@ async function list(req, res, next) {
     const [items, total] = await Promise.all([
       prisma.complaint.findMany({
         where,
-        include: { category: true, office: true, assignedAdmin: { select: { id: true, fullName: true } } },
+        include: {
+          category: true,
+          office: true,
+          zone: true,
+          district: true,
+          townAdministration: true,
+          assignedAdmin: { select: { id: true, fullName: true } },
+        },
         orderBy: { createdAt: "desc" },
         take,
         skip,
@@ -398,21 +412,34 @@ async function transfer(req, res, next) {
   }
 }
 
-/** Citizen-initiated escalation: moves the submitter's own unanswered complaint one level up (District -> Zone -> Super Admin) once its 10-day window has passed with no admin response. */
+/**
+ * Citizen-initiated escalation: moves the submitter's own complaint one level up
+ * (District -> Zone -> Super Admin). Unlocked either after 10 days with no admin response, or
+ * after the citizen has rejected a SOLVED resolution 3+ times (see getEscalationStatus). The
+ * citizen's own description of the problem (required on the dissatisfaction path) is recorded
+ * as the transfer/status-history reason; falls back to an auto-generated reason otherwise.
+ */
 async function escalate(req, res, next) {
   try {
+    const { reason: citizenReason } = req.body;
     const complaint = await prisma.complaint.findUnique({ where: { id: req.params.id } });
     if (!complaint) throw new ApiError(404, "Complaint not found");
     if (req.actor.type !== "USER" || complaint.submitterId !== req.actor.id) {
       throw new ApiError(403, "Only the citizen who filed this complaint can escalate it");
     }
 
-    const { canEscalate, nextLevel } = getEscalationStatus(complaint);
+    const { canEscalate, nextLevel, dissatisfactionEligible } = getEscalationStatus(complaint);
     if (!canEscalate) throw new ApiError(400, "This complaint is not yet eligible for escalation");
+    if (dissatisfactionEligible && !citizenReason?.trim()) {
+      throw new ApiError(422, "Please describe why you'd like this transferred to the upper office");
+    }
 
     const nextLevelLabel = nextLevel === "ZONE_ADMIN" ? "Zone Office" : "Regional Office (Super Admin)";
     const currentLevelLabel = complaint.escalatedTo === "ZONE_ADMIN" ? "Zone" : complaint.districtId ? "District" : "Zone";
-    const reason = `Auto-escalated by citizen after 10 days with no response from the ${currentLevelLabel} office`;
+    const autoReason = dissatisfactionEligible
+      ? `Citizen requested transfer to the upper office after rejecting the resolution ${complaint.satisfactionRejections} time(s)`
+      : `Auto-escalated by citizen after 10 days with no response from the ${currentLevelLabel} office`;
+    const reason = citizenReason?.trim() || autoReason;
 
     const updated = await prisma.complaint.update({
       where: { id: complaint.id },
@@ -422,6 +449,7 @@ async function escalate(req, res, next) {
         assignedAdminId: null,
         currentLevelEnteredAt: new Date(),
         lastFeedbackAt: null,
+        satisfactionRejections: 0,
         statusHistory: {
           create: { fromStatus: complaint.status, toStatus: "ESCALATED", changedById: req.actor.id, changedByType: "USER", reason },
         },
@@ -441,7 +469,7 @@ async function escalate(req, res, next) {
       {
         type: "COMPLAINT_TRANSFERRED",
         title: "A complaint was escalated to you",
-        message: `Complaint "${complaint.title}" (${complaint.trackingId}) was escalated after 10 days with no response.`,
+        message: `Complaint "${complaint.title}" (${complaint.trackingId}) was escalated: ${reason}`,
         link: `/app/complaints/${complaint.id}`,
       }
     );
@@ -450,11 +478,78 @@ async function escalate(req, res, next) {
       recipient: { type: "USER", id: req.actor.id },
       type: "COMPLAINT_TRANSFERRED",
       title: "Your complaint was escalated",
-      message: `Your complaint "${complaint.title}" was escalated to the ${nextLevelLabel} after 10 days with no response.`,
+      message: `Your complaint "${complaint.title}" was escalated to the ${nextLevelLabel}.`,
       link: `/app/complaints/${complaint.id}`,
     });
 
     return success(res, { message: "Complaint escalated", data: updated });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * Citizen responds to a SOLVED resolution. Satisfied is a no-op confirmation; not-satisfied
+ * requires a description, reopens the complaint (back to IN_PROGRESS) and increments
+ * satisfactionRejections, which after SATISFACTION_REJECTION_THRESHOLD rejections unlocks the
+ * "transfer to upper office" escalation option (see getEscalationStatus/escalate above).
+ */
+async function submitSatisfaction(req, res, next) {
+  try {
+    const { satisfied, reason } = req.body;
+    const complaint = await prisma.complaint.findUnique({ where: { id: req.params.id } });
+    if (!complaint) throw new ApiError(404, "Complaint not found");
+    if (req.actor.type !== "USER" || complaint.submitterId !== req.actor.id) {
+      throw new ApiError(403, "Only the citizen who filed this complaint can respond to its resolution");
+    }
+    if (complaint.status !== "SOLVED") {
+      throw new ApiError(400, "This complaint is not currently marked as solved");
+    }
+
+    if (satisfied) {
+      await logActivity({
+        actor: { type: "USER", id: req.actor.id, fullName: req.actor.fullName },
+        action: "COMPLAINT_SATISFACTION_CONFIRMED",
+        targetType: "Complaint",
+        targetId: complaint.id,
+      });
+      return success(res, { message: "Thanks for confirming", data: complaint });
+    }
+
+    if (!reason?.trim()) {
+      throw new ApiError(422, "Please describe why you're not satisfied with this resolution");
+    }
+
+    const rejections = complaint.satisfactionRejections + 1;
+    const updated = await prisma.complaint.update({
+      where: { id: complaint.id },
+      data: {
+        status: "IN_PROGRESS",
+        satisfactionRejections: rejections,
+        lastFeedbackAt: null,
+        statusHistory: {
+          create: {
+            fromStatus: "SOLVED",
+            toStatus: "IN_PROGRESS",
+            changedById: req.actor.id,
+            changedByType: "USER",
+            reason: `Citizen was not satisfied with the resolution (${rejections}/${SATISFACTION_REJECTION_THRESHOLD}): ${reason.trim()}`,
+          },
+        },
+      },
+    });
+
+    if (complaint.assignedAdminId) {
+      await notify({
+        recipient: { type: "ADMIN", id: complaint.assignedAdminId },
+        type: "STATUS_CHANGED",
+        title: "Citizen was not satisfied with the resolution",
+        message: `Complaint "${complaint.title}" (${complaint.trackingId}) was reopened — the citizen was not satisfied with the resolution.`,
+        link: `/app/complaints/${complaint.id}`,
+      });
+    }
+
+    return success(res, { message: "Feedback recorded, complaint reopened", data: updated });
   } catch (err) {
     next(err);
   }
@@ -477,4 +572,4 @@ async function addNote(req, res, next) {
   }
 }
 
-module.exports = { create, list, getByTrackingId, getById, updateStatus, assign, transfer, escalate, addNote };
+module.exports = { create, list, getByTrackingId, getById, updateStatus, assign, transfer, escalate, submitSatisfaction, addNote };

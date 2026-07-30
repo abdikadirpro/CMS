@@ -299,6 +299,10 @@ model Complaint {
   lastFeedbackAt        DateTime?
   escalatedTo           AdminType?
 
+  // Counts how many times the citizen has rejected a SOLVED resolution at the current handling
+  // level (see complaint.service.js getEscalationStatus). Resets to 0 whenever the level changes.
+  satisfactionRejections Int @default(0)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

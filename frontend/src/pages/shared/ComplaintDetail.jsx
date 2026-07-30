@@ -11,7 +11,7 @@ import { Modal } from "../../components/ui/Modal";
 import { SkeletonCard } from "../../components/ui/Skeleton";
 import {
   useGetComplaintByIdQuery, useUpdateComplaintStatusMutation,
-  useTransferComplaintMutation, useEscalateComplaintMutation, useAddComplaintNoteMutation,
+  useTransferComplaintMutation, useEscalateComplaintMutation, useSubmitSatisfactionMutation, useAddComplaintNoteMutation,
 } from "../../app/api/complaintsApi";
 import { useGetAdminDirectoryQuery } from "../../app/api/adminApi";
 import { useAuth } from "../../hooks/useAuth";
@@ -20,6 +20,7 @@ import { formatDateTime } from "../../lib/utils";
 const STATUSES = ["PENDING", "IN_PROGRESS", "WAITING", "SOLVED", "REJECTED", "TRANSFERRED", "ESCALATED"];
 
 const ESCALATION_LEVEL_LABELS = { ZONE_ADMIN: "Zone", SUPER_ADMIN: "Regional level (Super Admin)" };
+const SATISFACTION_REJECTION_THRESHOLD = 3;
 
 /** Mirrors the backend's isValidTransferTarget (jurisdiction.service.js) so the transfer dropdown only offers valid targets. */
 function isValidTransferTarget(complaint, admin) {
@@ -52,12 +53,17 @@ export default function ComplaintDetail() {
   const [updateStatus, { isLoading: updatingStatus }] = useUpdateComplaintStatusMutation();
   const [transferComplaint, { isLoading: transferring }] = useTransferComplaintMutation();
   const [escalateComplaint, { isLoading: escalating }] = useEscalateComplaintMutation();
+  const [submitSatisfaction, { isLoading: submittingSatisfaction }] = useSubmitSatisfactionMutation();
   const [addNote, { isLoading: addingNote }] = useAddComplaintNoteMutation();
   const { data: directoryRes } = useGetAdminDirectoryQuery(undefined, { skip: !isAdmin });
 
   const [transferOpen, setTransferOpen] = useState(false);
+  const [escalateOpen, setEscalateOpen] = useState(false);
+  const [dissatisfiedOpen, setDissatisfiedOpen] = useState(false);
   const { register: registerNote, handleSubmit: handleNoteSubmit, reset: resetNote } = useForm();
   const { register: registerTransfer, handleSubmit: handleTransferSubmit, reset: resetTransfer } = useForm();
+  const { register: registerEscalate, handleSubmit: handleEscalateSubmit, reset: resetEscalate } = useForm();
+  const { register: registerDissatisfied, handleSubmit: handleDissatisfiedSubmit, reset: resetDissatisfied } = useForm();
 
   if (isLoading) return <SkeletonCard />;
   const complaint = data?.data;
@@ -67,12 +73,34 @@ export default function ComplaintDetail() {
   const escalation = complaint.escalation;
   const validTransferTargets = (directoryRes?.data ?? []).filter((a) => isValidTransferTarget(complaint, a));
 
-  async function onEscalate() {
+  async function onSubmitEscalate(values) {
     try {
-      await escalateComplaint({ id }).unwrap();
+      await escalateComplaint({ id, reason: values.reason }).unwrap();
       toast.success("Complaint escalated");
+      setEscalateOpen(false);
+      resetEscalate();
     } catch (err) {
       toast.error(err?.data?.message || "Escalation failed");
+    }
+  }
+
+  async function onConfirmSatisfied() {
+    try {
+      await submitSatisfaction({ id, satisfied: true }).unwrap();
+      toast.success("Thanks for confirming");
+    } catch (err) {
+      toast.error(err?.data?.message || "Failed to submit feedback");
+    }
+  }
+
+  async function onSubmitDissatisfied(values) {
+    try {
+      await submitSatisfaction({ id, satisfied: false, reason: values.reason }).unwrap();
+      toast.success("Feedback recorded — complaint reopened");
+      setDissatisfiedOpen(false);
+      resetDissatisfied();
+    } catch (err) {
+      toast.error(err?.data?.message || "Failed to submit feedback");
     }
   }
 
@@ -198,16 +226,35 @@ export default function ComplaintDetail() {
         </Card>
       )}
 
+      {isOwner && complaint.status === "SOLVED" && (
+        <Card className="mb-5">
+          <h3 className="mb-2 font-semibold">Are you satisfied with this resolution?</h3>
+          <p className="mb-3 text-sm text-[rgb(var(--fg-muted))]">
+            Let us know if this actually solved your complaint.
+            {complaint.satisfactionRejections > 0 && (
+              <> You&apos;ve marked this unsatisfactory {complaint.satisfactionRejections} of {SATISFACTION_REJECTION_THRESHOLD} time(s).</>
+            )}
+          </p>
+          <div className="flex gap-2">
+            <Button size="sm" onClick={onConfirmSatisfied} loading={submittingSatisfaction}>Yes, satisfied</Button>
+            <Button size="sm" variant="secondary" onClick={() => setDissatisfiedOpen(true)}>Not satisfied</Button>
+          </div>
+        </Card>
+      )}
+
       {isOwner && escalation?.nextLevel && (
         <Card className="mb-5">
           <h3 className="mb-2 flex items-center gap-2 font-semibold"><ArrowUpCircle className="h-4 w-4 text-primary" /> Escalation</h3>
           {escalation.canEscalate ? (
             <div className="flex flex-wrap items-center justify-between gap-3">
               <p className="text-sm text-[rgb(var(--fg-muted))]">
-                It&apos;s been 10+ days with no response. You can escalate this complaint to the {ESCALATION_LEVEL_LABELS[escalation.nextLevel]}.
+                {escalation.dissatisfactionEligible
+                  ? `You've rejected this resolution ${SATISFACTION_REJECTION_THRESHOLD}+ times. You can request a transfer to the upper office.`
+                  : "It's been 10+ days with no response. You can escalate this complaint."}{" "}
+                Next stop: {ESCALATION_LEVEL_LABELS[escalation.nextLevel]}.
               </p>
-              <Button size="sm" onClick={onEscalate} loading={escalating}>
-                <ArrowUpCircle className="h-4 w-4" /> Escalate to {ESCALATION_LEVEL_LABELS[escalation.nextLevel]}
+              <Button size="sm" onClick={() => setEscalateOpen(true)}>
+                <ArrowUpCircle className="h-4 w-4" /> Transfer to {ESCALATION_LEVEL_LABELS[escalation.nextLevel]}
               </Button>
             </div>
           ) : (
@@ -282,6 +329,32 @@ export default function ComplaintDetail() {
           <Button type="submit" className="w-full" loading={transferring}>
             <UserCheck className="h-4 w-4" /> Confirm Transfer
           </Button>
+        </form>
+      </Modal>
+
+      <Modal open={escalateOpen} onClose={() => setEscalateOpen(false)} title="Transfer to Upper Office">
+        <form onSubmit={handleEscalateSubmit(onSubmitEscalate)} className="space-y-4">
+          <div>
+            <Label>Describe the issue</Label>
+            <Textarea
+              rows={3}
+              placeholder="Explain why this needs to go to the upper office..."
+              {...registerEscalate("reason", { required: escalation?.dissatisfactionEligible })}
+            />
+          </div>
+          <Button type="submit" className="w-full" loading={escalating}>
+            <ArrowUpCircle className="h-4 w-4" /> Confirm Transfer
+          </Button>
+        </form>
+      </Modal>
+
+      <Modal open={dissatisfiedOpen} onClose={() => setDissatisfiedOpen(false)} title="What's still wrong?">
+        <form onSubmit={handleDissatisfiedSubmit(onSubmitDissatisfied)} className="space-y-4">
+          <div>
+            <Label>Description</Label>
+            <Textarea rows={3} placeholder="Tell us why this resolution didn't solve your complaint..." {...registerDissatisfied("reason", { required: true })} />
+          </div>
+          <Button type="submit" className="w-full" loading={submittingSatisfaction}>Submit</Button>
         </form>
       </Modal>
     </div>

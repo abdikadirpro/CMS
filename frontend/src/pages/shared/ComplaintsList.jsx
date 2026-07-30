@@ -8,6 +8,7 @@ import { StatusBadge } from "../../components/ui/Badge";
 import { SkeletonTable } from "../../components/ui/Skeleton";
 import { Pagination } from "../../components/ui/Pagination";
 import { useGetComplaintsQuery } from "../../app/api/complaintsApi";
+import { useGetZonesQuery, useGetTownAdministrationsQuery, useGetCategorysQuery } from "../../app/api/hierarchyApi";
 import { useAuth } from "../../hooks/useAuth";
 import { formatDate } from "../../lib/utils";
 
@@ -17,9 +18,24 @@ export default function ComplaintsList() {
   const { isAdmin } = useAuth();
   const [status, setStatus] = useState("");
   const [search, setSearch] = useState("");
+  const [categoryId, setCategoryId] = useState("");
+  const [zoneId, setZoneId] = useState("");
+  const [townAdministrationId, setTownAdministrationId] = useState("");
   const [page, setPage] = useState(1);
 
-  const { data, isLoading } = useGetComplaintsQuery({ status: status || undefined, search: search || undefined, page, pageSize: 15 });
+  const { data: categories } = useGetCategorysQuery(undefined, { skip: !isAdmin });
+  const { data: zones } = useGetZonesQuery(undefined, { skip: !isAdmin });
+  const { data: townAdministrations } = useGetTownAdministrationsQuery(undefined, { skip: !isAdmin });
+
+  const { data, isLoading } = useGetComplaintsQuery({
+    status: status || undefined,
+    search: search || undefined,
+    categoryId: categoryId || undefined,
+    zoneId: zoneId || undefined,
+    townAdministrationId: townAdministrationId || undefined,
+    page,
+    pageSize: 15,
+  });
   const complaints = data?.data ?? [];
 
   return (
@@ -41,6 +57,22 @@ export default function ComplaintsList() {
             <option value="">All Statuses</option>
             {STATUSES.map((s) => <option key={s} value={s}>{s.replace("_", " ")}</option>)}
           </Select>
+          {isAdmin && (
+            <>
+              <Select value={categoryId} onChange={(e) => { setCategoryId(e.target.value); setPage(1); }} className="sm:w-56">
+                <option value="">All Categories</option>
+                {(categories?.data ?? []).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </Select>
+              <Select value={zoneId} onChange={(e) => { setZoneId(e.target.value); setPage(1); }} className="sm:w-56">
+                <option value="">All Zones</option>
+                {(zones?.data ?? []).map((z) => <option key={z.id} value={z.id}>{z.name}</option>)}
+              </Select>
+              <Select value={townAdministrationId} onChange={(e) => { setTownAdministrationId(e.target.value); setPage(1); }} className="sm:w-56">
+                <option value="">All Administrations</option>
+                {(townAdministrations?.data ?? []).map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+              </Select>
+            </>
+          )}
         </div>
       </Card>
 
@@ -56,6 +88,7 @@ export default function ComplaintsList() {
                 <TH>Tracking ID</TH>
                 <TH>Title</TH>
                 <TH>Category</TH>
+                {isAdmin && <TH>Zone / Admin</TH>}
                 <TH>Status</TH>
                 <TH>Submitted</TH>
                 <TH></TH>
@@ -67,6 +100,7 @@ export default function ComplaintsList() {
                   <TD className="font-mono text-xs">{c.trackingId}</TD>
                   <TD className="max-w-xs truncate font-medium">{c.title}</TD>
                   <TD>{c.category?.name || "—"}</TD>
+                  {isAdmin && <TD>{c.zone?.name || c.townAdministration?.name || "—"}</TD>}
                   <TD><StatusBadge status={c.status} /></TD>
                   <TD className="text-[rgb(var(--fg-muted))]">{formatDate(c.createdAt)}</TD>
                   <TD>

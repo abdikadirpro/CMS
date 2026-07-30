@@ -37,7 +37,11 @@ export const complaintsApi = baseApi.injectEndpoints({
       invalidatesTags: (result, error, { id }) => [{ type: "Complaint", id }, { type: "Complaint", id: "LIST" }],
     }),
     escalateComplaint: builder.mutation({
-      query: ({ id }) => ({ url: `/complaints/${id}/escalate`, method: "POST" }),
+      query: ({ id, reason }) => ({ url: `/complaints/${id}/escalate`, method: "POST", body: { reason } }),
+      invalidatesTags: (result, error, { id }) => [{ type: "Complaint", id }, { type: "Complaint", id: "LIST" }],
+    }),
+    submitSatisfaction: builder.mutation({
+      query: ({ id, satisfied, reason }) => ({ url: `/complaints/${id}/satisfaction`, method: "POST", body: { satisfied, reason } }),
       invalidatesTags: (result, error, { id }) => [{ type: "Complaint", id }, { type: "Complaint", id: "LIST" }],
     }),
     addComplaintNote: builder.mutation({
@@ -56,5 +60,6 @@ export const {
   useAssignComplaintMutation,
   useTransferComplaintMutation,
   useEscalateComplaintMutation,
+  useSubmitSatisfactionMutation,
   useAddComplaintNoteMutation,
 } = complaintsApi;
