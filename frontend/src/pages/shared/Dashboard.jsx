@@ -63,7 +63,7 @@ function OrgContextBar({ actor }) {
 }
 
 /**
- * A citizen's complaint-submission "tokens": 3 per rolling 30 days, at least 10 days apart.
+ * A citizen's complaint-submission "tokens": 3 per rolling 30 days.
  * Mirrors exactly what the backend enforces (assertSubmissionAllowed) — this is read-only display.
  */
 function TokenStatusCard({ tokens }) {

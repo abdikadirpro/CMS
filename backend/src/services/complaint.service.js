@@ -37,42 +37,18 @@ async function resolveJurisdictionFromLocation({ districtId, zoneId, townAdminis
 }
 
 const SUBMISSION_MONTHLY_LIMIT = 3;
-const SUBMISSION_MIN_GAP_MS = 10 * 24 * 60 * 60 * 1000;
 const SUBMISSION_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
 
-/** Formats a duration in whatever unit reads naturally, so error messages stay honest even when
- * SUBMISSION_MIN_GAP_MS is temporarily set to something other than whole days (e.g. for testing). */
-function formatDuration(ms) {
-  const minutes = Math.ceil(ms / (60 * 1000));
-  if (minutes < 60) return `${minutes} minute(s)`;
-  const hours = Math.ceil(ms / (60 * 60 * 1000));
-  if (hours < 24) return `${hours} hour(s)`;
-  const days = Math.ceil(ms / (24 * 60 * 60 * 1000));
-  return `${days} day(s)`;
-}
-
 /**
- * Throws if a logged-in citizen has submitted a complaint too recently (< 10 days ago) or has
- * already hit the 3-per-rolling-month cap. Applies to every authenticated submission, including
- * ones marked anonymous — anonymous complaints intentionally leave submitterId null (so admins
- * can't see who filed them), so this counts against the ActivityLog's COMPLAINT_CREATED entries
+ * Throws if a logged-in citizen has already hit the 3-per-rolling-month cap. Applies to every
+ * authenticated submission, including ones marked anonymous — anonymous complaints intentionally
+ * leave submitterId null (so admins can't see who filed them), so this counts against the
+ * ActivityLog's COMPLAINT_CREATED entries
  * (recorded for every submission regardless of anonymity) instead of Complaint.submitterId, which
  * an anonymous submission would never show up under. Guest/unauthenticated submitters have no
  * account to key this on — see assertGuestSubmissionAllowed for their (IP-based) limit instead.
  */
 async function assertSubmissionAllowed(userId) {
-  const last = await prisma.activityLog.findFirst({
-    where: { actorId: userId, actorType: "USER", action: "COMPLAINT_CREATED" },
-    orderBy: { createdAt: "desc" },
-    select: { createdAt: true },
-  });
-  if (last) {
-    const elapsedMs = Date.now() - last.createdAt.getTime();
-    if (elapsedMs < SUBMISSION_MIN_GAP_MS) {
-      throw new ApiError(429, `Please wait ${formatDuration(SUBMISSION_MIN_GAP_MS - elapsedMs)} before submitting another complaint (minimum ${formatDuration(SUBMISSION_MIN_GAP_MS)} between submissions).`);
-    }
-  }
-
   const recentCount = await prisma.activityLog.count({
     where: { actorId: userId, actorType: "USER", action: "COMPLAINT_CREATED", createdAt: { gte: new Date(Date.now() - SUBMISSION_WINDOW_MS) } },
   });
@@ -84,7 +60,7 @@ async function assertSubmissionAllowed(userId) {
 /**
  * Read-only view of a citizen's current submission "tokens" — how many of their 3 monthly slots
  * are used, how many remain, and (if blocked right now) when the next one opens up. Mirrors the
- * exact two rules assertSubmissionAllowed enforces, but never throws — this is for display only.
+ * rule assertSubmissionAllowed enforces, but never throws — this is for display only.
  */
 async function getSubmissionTokenStatus(userId) {
   const windowStart = new Date(Date.now() - SUBMISSION_WINDOW_MS);
@@ -96,29 +72,20 @@ async function getSubmissionTokenStatus(userId) {
 
   const used = recent.length;
   const remaining = Math.max(0, SUBMISSION_MONTHLY_LIMIT - used);
-  const last = recent[recent.length - 1] ?? null;
-  const gapEligibleAt = last ? new Date(last.createdAt.getTime() + SUBMISSION_MIN_GAP_MS) : null;
-  const withinGap = Boolean(gapEligibleAt && gapEligibleAt > new Date());
-
-  let nextEligibleAt = null;
-  if (withinGap) {
-    nextEligibleAt = gapEligibleAt;
-  } else if (remaining === 0) {
-    // The monthly cap frees up when the oldest counted submission ages out of the rolling window.
-    nextEligibleAt = new Date(recent[0].createdAt.getTime() + SUBMISSION_WINDOW_MS);
-  }
+  // The monthly cap frees up when the oldest counted submission ages out of the rolling window.
+  const nextEligibleAt = remaining === 0 ? new Date(recent[0].createdAt.getTime() + SUBMISSION_WINDOW_MS) : null;
 
   return {
     used,
     limit: SUBMISSION_MONTHLY_LIMIT,
     remaining,
-    canSubmitNow: remaining > 0 && !withinGap,
+    canSubmitNow: remaining > 0,
     nextEligibleAt,
   };
 }
 
 /**
- * Same 10-day-gap / 3-per-month cap as assertSubmissionAllowed, but for guest (not logged in)
+ * Same 3-per-month cap as assertSubmissionAllowed, but for guest (not logged in)
  * submissions, keyed by IP address since there's no account to check. Deliberately scoped to
  * guest activity only (actorId: null) so it never collides with an authenticated citizen's own
  * per-account limit. Coarser than the account-based check by nature — a shared/NAT'd IP (an
@@ -127,18 +94,6 @@ async function getSubmissionTokenStatus(userId) {
  */
 async function assertGuestSubmissionAllowed(ipAddress) {
   if (!ipAddress) return; // nothing reliable to key the limit on at all
-
-  const last = await prisma.activityLog.findFirst({
-    where: { actorId: null, action: "COMPLAINT_CREATED", ipAddress },
-    orderBy: { createdAt: "desc" },
-    select: { createdAt: true },
-  });
-  if (last) {
-    const elapsedMs = Date.now() - last.createdAt.getTime();
-    if (elapsedMs < SUBMISSION_MIN_GAP_MS) {
-      throw new ApiError(429, `Please wait ${formatDuration(SUBMISSION_MIN_GAP_MS - elapsedMs)} before submitting another guest complaint from this network (minimum ${formatDuration(SUBMISSION_MIN_GAP_MS)} between submissions). Log in to submit under your own account instead.`);
-    }
-  }
 
   const recentCount = await prisma.activityLog.count({
     where: { actorId: null, action: "COMPLAINT_CREATED", ipAddress, createdAt: { gte: new Date(Date.now() - SUBMISSION_WINDOW_MS) } },
