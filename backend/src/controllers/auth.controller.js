@@ -1,4 +1,5 @@
 const prisma = require("../config/db");
+const env = require("../config/env");
 const { ApiError, success } = require("../utils/apiResponse");
 const { hashToken, verifyRefreshToken } = require("../utils/jwt");
 const {
@@ -62,7 +63,9 @@ async function register(req, res, next) {
     return success(res, {
       statusCode: 201,
       message: "Account created. Enter the verification code sent to your email to activate it.",
-      data: { userId: user.id, email: user.email },
+      // No email provider configured (local/test env) — the code only ever reaches the server
+      // console (see email.service.js sendEmail), so surface it here instead of blocking on inbox access.
+      data: { userId: user.id, email: user.email, ...(!env.email.resendApiKey ? { devOtp: otp } : {}) },
     });
   } catch (err) {
     next(err);
@@ -110,7 +113,10 @@ async function resendOtp(req, res, next) {
     });
     await sendOtpEmail({ to: user.email, fullName: user.fullName, otp });
 
-    return success(res, { message: "A new verification code has been sent" });
+    return success(res, {
+      message: "A new verification code has been sent",
+      data: { ...(!env.email.resendApiKey ? { devOtp: otp } : {}) },
+    });
   } catch (err) {
     next(err);
   }

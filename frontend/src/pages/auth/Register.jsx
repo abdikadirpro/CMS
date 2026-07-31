@@ -18,7 +18,7 @@ export default function Register() {
     try {
       const res = await registerUser(values).unwrap();
       toast.success("Account created! Check your email for the verification code.");
-      navigate(`/verify-otp?userId=${res.data.userId}`);
+      navigate(`/verify-otp?userId=${res.data.userId}`, { state: { devOtp: res.data.devOtp } });
     } catch (err) {
       setServerError(err?.data?.message || "Registration failed");
     }
