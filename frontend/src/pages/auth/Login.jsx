@@ -3,11 +3,13 @@ import { Link, useNavigate } from "react-router-dom";
 import { useDispatch } from "react-redux";
 import { useForm } from "react-hook-form";
 import toast from "react-hot-toast";
-import { Mail, Lock, LogIn } from "lucide-react";
+import { Mail, LogIn, LayoutDashboard } from "lucide-react";
 import { Input, Label, FieldError } from "../../components/ui/Input";
+import { PasswordInput } from "../../components/ui/PasswordInput";
 import Button from "../../components/ui/Button";
 import { useLoginMutation } from "../../app/api/authApi";
 import { setCredentials } from "../../app/authSlice";
+import { useAuth } from "../../hooks/useAuth";
 
 export default function Login() {
   const { register, handleSubmit, formState: { errors } } = useForm();
@@ -15,6 +17,19 @@ export default function Login() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const [serverError, setServerError] = useState("");
+  const { isAuthenticated, actor } = useAuth();
+
+  if (isAuthenticated) {
+    return (
+      <div className="text-center">
+        <h2 className="mb-1 text-2xl font-bold">You&apos;re already signed in</h2>
+        <p className="mb-6 text-sm text-slate-400">Signed in as {actor?.fullName || actor?.email}</p>
+        <Link to="/app">
+          <Button className="w-full"><LayoutDashboard className="h-4 w-4" /> Go to Dashboard</Button>
+        </Link>
+      </div>
+    );
+  }
 
   async function onSubmit(values) {
     setServerError("");
@@ -53,10 +68,7 @@ export default function Login() {
             <Label className="mb-1.5">Password</Label>
             <Link to="/forgot-password" className="mb-1.5 text-xs text-primary hover:underline">Forgot password?</Link>
           </div>
-          <div className="relative">
-            <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-            <Input type="password" placeholder="••••••••" className="pl-9" {...register("password", { required: "Password is required" })} />
-          </div>
+          <PasswordInput placeholder="••••••••" {...register("password", { required: "Password is required" })} />
           <FieldError>{errors.password?.message}</FieldError>
         </div>
 

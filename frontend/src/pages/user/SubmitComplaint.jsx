@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useForm, Controller } from "react-hook-form";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
 import { UploadCloud, Send, X, FileText } from "lucide-react";
 import { Input, Textarea, Select, Label, FieldError } from "../../components/ui/Input";
@@ -11,8 +11,11 @@ import { useGetCategorysQuery, useGetOfficesQuery, useGetZonesQuery, useGetDistr
 import { useAuth } from "../../hooks/useAuth";
 
 export default function SubmitComplaint() {
+  const [searchParams] = useSearchParams();
+  // Arriving from the Ethics portal's "Submit an Anonymous Complaint" link (?anonymous=true)
+  // pre-checks the toggle instead of making the visitor find and click it themselves.
   const { register, handleSubmit, control, watch, setValue, formState: { errors } } = useForm({
-    defaultValues: { isAnonymous: false, locationType: "district" },
+    defaultValues: { isAnonymous: searchParams.get("anonymous") === "true", locationType: "district" },
   });
   const [submitComplaint, { isLoading }] = useSubmitComplaintMutation();
   const { data: categoriesRes } = useGetCategorysQuery();
@@ -48,16 +51,17 @@ export default function SubmitComplaint() {
     formData.append("description", values.description);
     formData.append("location", values.location || "");
     formData.append("categoryId", values.categoryId || "");
-    formData.append("officeId", values.officeId || "");
     if (values.locationType === "district") {
       formData.append("districtId", values.districtId || "");
     } else if (values.locationType === "zone") {
       formData.append("zoneId", values.zoneOnlyId || "");
     } else if (values.locationType === "town") {
       formData.append("townAdministrationId", values.townAdministrationId || "");
+    } else if (values.locationType === "office") {
+      formData.append("officeId", values.officeId || "");
+    } else if (values.locationType === "regional") {
+      formData.append("isRegionalLevel", "true");
     }
-    // locationType === "office": officeId (appended above) is already the full routing signal —
-    // no district/zone/town to add.
     formData.append("isAnonymous", String(Boolean(values.isAnonymous)));
     // Office/Job Position/ID Number are per-complaint context the backend stores regardless of
     // submission type, so they're always sent. Name/Email/Phone are only meaningful when there's
@@ -155,7 +159,10 @@ export default function SubmitComplaint() {
             </div>
             <div>
               <Label>Where did this happen?</Label>
-              <div className="mb-3 flex gap-4 text-sm">
+              <p className="mb-2 text-xs text-[rgb(var(--fg-muted))]">
+                Select the level that best matches your issue — each level routes to the correct Ethics &amp; Investigation office automatically.
+              </p>
+              <div className="mb-3 flex flex-wrap gap-4 text-sm">
                 <label className="flex items-center gap-1.5">
                   <input
                     type="radio"
@@ -194,7 +201,17 @@ export default function SubmitComplaint() {
                     onChange={() => setValue("locationType", "office")}
                     className="h-4 w-4 accent-primary"
                   />
-                  Office (regional level)
+                  Regional Office / Bureau / Institution
+                </label>
+                <label className="flex items-center gap-1.5">
+                  <input
+                    type="radio"
+                    value="regional"
+                    checked={locationType === "regional"}
+                    onChange={() => setValue("locationType", "regional")}
+                    className="h-4 w-4 accent-primary"
+                  />
+                  Regional Level
                 </label>
               </div>
 
@@ -215,6 +232,7 @@ export default function SubmitComplaint() {
                     </Select>
                     <FieldError>{errors.districtId?.message}</FieldError>
                   </div>
+                  <p className="text-xs text-[rgb(var(--fg-muted))] sm:col-span-2">Routed directly to that District&apos;s Zone Ethics &amp; Investigation Office.</p>
                 </div>
               )}
 
@@ -226,7 +244,7 @@ export default function SubmitComplaint() {
                     {zonesRes?.data?.map((z) => <option key={z.id} value={z.id}>{z.name}</option>)}
                   </Select>
                   <FieldError>{errors.zoneOnlyId?.message}</FieldError>
-                  <p className="mt-1 text-xs text-[rgb(var(--fg-muted))]">Use this only if the issue isn&apos;t specific to one district — it goes straight to the Zone Admin.</p>
+                  <p className="mt-1 text-xs text-[rgb(var(--fg-muted))]">Use this for a general zone-wide issue with no specific district — it&apos;s submitted directly to the Regional (DDS) Ethics &amp; Investigation Office.</p>
                 </div>
               )}
 
@@ -238,6 +256,7 @@ export default function SubmitComplaint() {
                     {townsRes?.data?.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
                   </Select>
                   <FieldError>{errors.townAdministrationId?.message}</FieldError>
+                  <p className="mt-1 text-xs text-[rgb(var(--fg-muted))]">Submitted directly to the Regional (DDS) Ethics &amp; Investigation Office.</p>
                 </div>
               )}
 
@@ -252,9 +271,15 @@ export default function SubmitComplaint() {
                   </Select>
                   <FieldError>{errors.officeId?.message}</FieldError>
                   <p className="mt-1 text-xs text-[rgb(var(--fg-muted))]">
-                    Use this for a regional-level office issue with no specific district, zone, or town — it goes straight to that office&apos;s admin, reporting directly to the Super Admin.
+                    For a complaint about a specific regional office, bureau, or institution — submitted directly to the Regional (DDS) Ethics &amp; Investigation Office.
                   </p>
                 </div>
+              )}
+
+              {locationType === "regional" && (
+                <p className="text-xs text-[rgb(var(--fg-muted))]">
+                  For a complaint about the regional level as a whole, not tied to any specific office — submitted directly to the Regional Ethics &amp; Investigation Commission.
+                </p>
               )}
             </div>
 

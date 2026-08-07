@@ -28,8 +28,12 @@ const ADMIN_ORG_INCLUDE = {
 const REFRESH_COOKIE_NAME = "cms_refresh_token";
 const REFRESH_COOKIE_OPTIONS = {
   httpOnly: true,
-  sameSite: "lax",
-  secure: process.env.NODE_ENV === "production",
+  // Frontend and backend are deployed to different origins (e.g. Vercel + Render), so the
+  // refresh cookie must be SameSite=None (which browsers only honor alongside Secure) to be sent
+  // on cross-site fetch requests at all. Locally both run same-site behind the Vite proxy, where
+  // Lax + non-Secure is fine (and required, since local dev is plain http).
+  sameSite: env.nodeEnv === "production" ? "none" : "lax",
+  secure: env.nodeEnv === "production",
   path: "/api/auth",
   maxAge: 7 * 24 * 60 * 60 * 1000,
 };

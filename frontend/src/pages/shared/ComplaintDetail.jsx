@@ -2,7 +2,11 @@ import { useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import toast from "react-hot-toast";
-import { ArrowLeft, Paperclip, MessageSquarePlus, ArrowLeftRight, UserCheck, ArrowUpCircle } from "lucide-react";
+import {
+  ArrowLeft, Paperclip, MessageSquarePlus, ArrowLeftRight, UserCheck, ArrowUpCircle,
+  FileText, Image as ImageIcon, User, Mail, Phone, BadgeCheck, Building2, Briefcase, Hash,
+  MapPin, Clock, Loader2, Hourglass, CheckCircle2, XCircle, ShieldQuestion,
+} from "lucide-react";
 import { Card } from "../../components/ui/Card";
 import { StatusBadge, Badge } from "../../components/ui/Badge";
 import { Select, Textarea, Label } from "../../components/ui/Input";
@@ -22,6 +26,22 @@ const STATUSES = ["PENDING", "IN_PROGRESS", "WAITING", "SOLVED", "REJECTED", "TR
 const ESCALATION_LEVEL_LABELS = { ZONE_ADMIN: "Zone", SUPER_ADMIN: "Regional level (Super Admin)" };
 const SATISFACTION_REJECTION_THRESHOLD = 3;
 
+const STATUS_TIMELINE_STYLE = {
+  PENDING: { icon: Clock, className: "bg-slate-500/15 text-slate-400" },
+  IN_PROGRESS: { icon: Loader2, className: "bg-primary/15 text-primary" },
+  WAITING: { icon: Hourglass, className: "bg-amber-500/15 text-amber-400" },
+  SOLVED: { icon: CheckCircle2, className: "bg-emerald-500/15 text-emerald-400" },
+  TRANSFERRED: { icon: ArrowLeftRight, className: "bg-indigo-500/15 text-indigo-400" },
+  REJECTED: { icon: XCircle, className: "bg-rose-500/15 text-rose-400" },
+  ESCALATED: { icon: ArrowUpCircle, className: "bg-red-500/15 text-red-400" },
+};
+
+const IMAGE_EXTENSIONS = /\.(png|jpe?g|gif|webp|svg|bmp)$/i;
+
+function apiUrl(path) {
+  return `${import.meta.env.VITE_API_URL || ""}${path}`;
+}
+
 /** Mirrors the backend's isValidTransferTarget (jurisdiction.service.js) so the transfer dropdown only offers valid targets. */
 function isValidTransferTarget(complaint, admin) {
   if (admin.adminType === "SUPER_ADMIN") return true;
@@ -36,13 +56,18 @@ function isValidTransferTarget(complaint, admin) {
   return true;
 }
 
-function Row({ label, value }) {
+function InfoField({ icon: Icon, label, value }) {
   if (!value) return null;
   return (
-    <>
-      <dt className="text-[rgb(var(--fg-muted))]">{label}</dt>
-      <dd className="mb-1 sm:mb-0">{value}</dd>
-    </>
+    <div className="flex items-start gap-3 rounded-lg bg-[rgb(var(--bg-alt))] p-3">
+      <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+        <Icon className="h-4 w-4" />
+      </span>
+      <div className="min-w-0">
+        <p className="text-xs text-[rgb(var(--fg-muted))]">{label}</p>
+        <p className="truncate text-sm font-medium">{value}</p>
+      </div>
+    </div>
   );
 }
 
@@ -142,15 +167,17 @@ export default function ComplaintDetail() {
         <ArrowLeft className="h-4 w-4" /> Back to complaints
       </Link>
 
-      <Card className="mb-5">
+      <Card className="mb-5 overflow-hidden">
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <p className="font-mono text-xs text-[rgb(var(--fg-muted))]">{complaint.trackingId}</p>
-            <h1 className="text-xl font-bold">{complaint.title}</h1>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {complaint.category && <Badge>{complaint.category.name}</Badge>}
+          <div className="min-w-0">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-[rgb(var(--border))] bg-[rgb(var(--bg-alt))] px-2.5 py-0.5 font-mono text-xs text-[rgb(var(--fg-muted))]">
+              <Hash className="h-3 w-3" /> {complaint.trackingId}
+            </span>
+            <h1 className="mt-2 text-xl font-bold sm:text-2xl">{complaint.title}</h1>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {complaint.category && <Badge variant="primary">{complaint.category.name}</Badge>}
               {complaint.isAnonymous && <Badge variant="warning">Anonymous</Badge>}
-              {complaint.office && <Badge variant="primary">{complaint.office.name}</Badge>}
+              {complaint.office && <Badge>{complaint.office.name}</Badge>}
               {complaint.district && <Badge>{complaint.district.name}{complaint.zone ? ` · ${complaint.zone.name}` : ""}</Badge>}
               {!complaint.district && complaint.zone && <Badge>{complaint.zone.name} (zone-wide)</Badge>}
               {complaint.townAdministration && <Badge>{complaint.townAdministration.name}</Badge>}
@@ -158,24 +185,59 @@ export default function ComplaintDetail() {
           </div>
           <StatusBadge status={complaint.status} />
         </div>
-        <p className="mt-4 whitespace-pre-wrap text-sm text-[rgb(var(--fg-muted))]">{complaint.description}</p>
-        {complaint.location && <p className="mt-3 text-sm"><span className="font-medium">Location:</span> {complaint.location}</p>}
+
+        <p className="mt-5 whitespace-pre-wrap rounded-xl bg-[rgb(var(--bg-alt))] p-4 text-sm leading-relaxed text-[rgb(var(--fg-muted))]">
+          {complaint.description}
+        </p>
+        {complaint.location && (
+          <p className="mt-3 flex items-center gap-1.5 text-sm">
+            <MapPin className="h-4 w-4 text-primary" /> <span className="font-medium">Location:</span> {complaint.location}
+          </p>
+        )}
 
         {complaint.attachments?.length > 0 && (
-          <div className="mt-4">
-            <p className="mb-2 text-sm font-medium">Attachments</p>
-            <div className="flex flex-wrap gap-2">
-              {complaint.attachments.map((a) => (
-                <a key={a.id} href={`${import.meta.env.VITE_API_URL || ""}${a.url}`} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 rounded-lg border border-[rgb(var(--border))] px-3 py-1.5 text-xs hover:bg-[rgb(var(--bg-alt))]">
-                  <Paperclip className="h-3.5 w-3.5" /> {a.fileName}
-                </a>
-              ))}
+          <div className="mt-5">
+            <p className="mb-2 flex items-center gap-1.5 text-sm font-medium">
+              <Paperclip className="h-4 w-4" /> Attachments
+            </p>
+            <div className="flex flex-wrap gap-3">
+              {complaint.attachments.map((a) =>
+                IMAGE_EXTENSIONS.test(a.fileName) ? (
+                  <a
+                    key={a.id}
+                    href={apiUrl(a.url)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="group relative h-24 w-24 shrink-0 overflow-hidden rounded-xl border border-[rgb(var(--border))]"
+                  >
+                    <img src={apiUrl(a.url)} alt={a.fileName} className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-110" />
+                    <span className="absolute inset-x-0 bottom-0 truncate bg-black/60 px-1.5 py-1 text-[10px] text-white opacity-0 transition-opacity group-hover:opacity-100">
+                      {a.fileName}
+                    </span>
+                  </a>
+                ) : (
+                  <a
+                    key={a.id}
+                    href={apiUrl(a.url)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex items-center gap-2 rounded-xl border border-[rgb(var(--border))] px-3 py-2.5 text-xs transition-colors hover:border-primary/40 hover:bg-[rgb(var(--bg-alt))]"
+                  >
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                      <FileText className="h-4 w-4" />
+                    </span>
+                    <span className="max-w-[10rem] truncate">{a.fileName}</span>
+                  </a>
+                )
+              )}
             </div>
           </div>
         )}
 
-        <div className="mt-4 border-t border-[rgb(var(--border))] pt-4 text-sm">
-          <p className="mb-2 font-medium">Complainant Information</p>
+        <div className="mt-5 border-t border-[rgb(var(--border))] pt-5">
+          <p className="mb-3 flex items-center gap-1.5 text-sm font-medium">
+            <User className="h-4 w-4" /> Complainant Information
+          </p>
 
           {complaint.isAnonymous ? (
             <div>
@@ -188,22 +250,22 @@ export default function ComplaintDetail() {
               )}
             </div>
           ) : complaint.submitter ? (
-            <dl className="grid grid-cols-1 gap-x-6 gap-y-1 sm:grid-cols-2">
-              <Row label="Full Name" value={complaint.submitter.fullName} />
-              <Row label="Email" value={complaint.submitter.email} />
-              <Row label="Phone" value={complaint.submitter.phone} />
-              <Row label="Account Type" value="Registered Citizen" />
-            </dl>
+            <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+              <InfoField icon={User} label="Full Name" value={complaint.submitter.fullName} />
+              <InfoField icon={Mail} label="Email" value={complaint.submitter.email} />
+              <InfoField icon={Phone} label="Phone" value={complaint.submitter.phone} />
+              <InfoField icon={BadgeCheck} label="Account Type" value="Registered Citizen" />
+            </div>
           ) : (
-            <dl className="grid grid-cols-1 gap-x-6 gap-y-1 sm:grid-cols-2">
-              <Row label="Full Name" value={complaint.guestFullName} />
-              <Row label="Email" value={complaint.guestEmail} />
-              <Row label="Phone" value={complaint.guestPhone} />
-              <Row label="National ID" value={complaint.guestIdNumber} />
-              <Row label="Office / Workplace" value={complaint.guestOffice} />
-              <Row label="Job Position" value={complaint.guestJobTitle} />
-              <Row label="Employee ID" value={complaint.guestEmployeeId} />
-            </dl>
+            <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+              <InfoField icon={User} label="Full Name" value={complaint.guestFullName} />
+              <InfoField icon={Mail} label="Email" value={complaint.guestEmail} />
+              <InfoField icon={Phone} label="Phone" value={complaint.guestPhone} />
+              <InfoField icon={ShieldQuestion} label="National ID" value={complaint.guestIdNumber} />
+              <InfoField icon={Building2} label="Office / Workplace" value={complaint.guestOffice} />
+              <InfoField icon={Briefcase} label="Job Position" value={complaint.guestJobTitle} />
+              <InfoField icon={Hash} label="Employee ID" value={complaint.guestEmployeeId} />
+            </div>
           )}
         </div>
       </Card>
@@ -267,17 +329,29 @@ export default function ComplaintDetail() {
 
       <Card className="mb-5">
         <h3 className="mb-4 font-semibold">Status Timeline</h3>
-        <ol className="space-y-3 border-l border-[rgb(var(--border))] pl-4">
-          {complaint.statusHistory?.map((h) => (
-            <li key={h.id} className="relative">
-              <span className="absolute -left-[1.35rem] top-1 h-2.5 w-2.5 rounded-full bg-primary" />
-              <div className="flex items-center gap-2">
-                <StatusBadge status={h.toStatus} />
-                <span className="text-xs text-[rgb(var(--fg-muted))]">{formatDateTime(h.createdAt)}</span>
-              </div>
-              {h.reason && <p className="mt-1 text-xs text-[rgb(var(--fg-muted))]">{h.reason}</p>}
-            </li>
-          ))}
+        <ol className="space-y-5">
+          {complaint.statusHistory?.map((h, i) => {
+            const style = STATUS_TIMELINE_STYLE[h.toStatus] || STATUS_TIMELINE_STYLE.PENDING;
+            const StatusIcon = style.icon;
+            const isLast = i === complaint.statusHistory.length - 1;
+            return (
+              <li key={h.id} className="relative flex gap-3.5">
+                <div className="flex flex-col items-center">
+                  <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${style.className}`}>
+                    <StatusIcon className="h-4 w-4" />
+                  </span>
+                  {!isLast && <span className="mt-1 w-px flex-1 bg-[rgb(var(--border))]" />}
+                </div>
+                <div className="pb-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <StatusBadge status={h.toStatus} />
+                    <span className="text-xs text-[rgb(var(--fg-muted))]">{formatDateTime(h.createdAt)}</span>
+                  </div>
+                  {h.reason && <p className="mt-1 text-sm text-[rgb(var(--fg-muted))]">{h.reason}</p>}
+                </div>
+              </li>
+            );
+          })}
         </ol>
       </Card>
 
@@ -293,9 +367,14 @@ export default function ComplaintDetail() {
           <div className="space-y-3">
             {complaint.notes?.length === 0 && <p className="text-sm text-[rgb(var(--fg-muted))]">No notes yet.</p>}
             {complaint.notes?.map((n) => (
-              <div key={n.id} className="rounded-lg bg-[rgb(var(--bg-alt))] p-3 text-sm">
-                <p>{n.content}</p>
-                <p className="mt-1 text-xs text-[rgb(var(--fg-muted))]">{n.admin?.fullName} · {formatDateTime(n.createdAt)}</p>
+              <div key={n.id} className="flex gap-3 rounded-xl bg-[rgb(var(--bg-alt))] p-3">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/15 text-xs font-semibold text-primary">
+                  {(n.admin?.fullName || "?").split(/\s+/).slice(0, 2).map((w) => w[0]).join("").toUpperCase()}
+                </span>
+                <div className="min-w-0">
+                  <p className="text-sm">{n.content}</p>
+                  <p className="mt-1 text-xs text-[rgb(var(--fg-muted))]">{n.admin?.fullName} · {formatDateTime(n.createdAt)}</p>
+                </div>
               </div>
             ))}
           </div>

@@ -37,6 +37,7 @@ async function create(req, res, next) {
       districtId,
       zoneId,
       townAdministrationId,
+      isRegionalLevel,
       isAnonymous,
       guestFullName,
       guestEmail,
@@ -47,11 +48,12 @@ async function create(req, res, next) {
       guestEmployeeId,
     } = req.body;
 
-    // "Where did this happen?" is satisfied by a District, Zone, or Town Administration — or,
-    // for regional-level issues with no specific sub-jurisdiction, an Office directly (Office
-    // Admins report straight to Super Admin, same as Zone/District/Town Administration admins).
-    if (!districtId && !zoneId && !townAdministrationId && !officeId) {
-      throw new ApiError(422, "Please select where this complaint occurred (a District, Zone, Town Administration, or Office)");
+    const regional = isRegionalLevel === "true" || isRegionalLevel === true;
+
+    // "Where did this happen?" is satisfied by a District, Zone, Town Administration, Office, or
+    // Regional Level — see resolveJurisdictionFromLocation for how each one routes.
+    if (!districtId && !zoneId && !townAdministrationId && !officeId && !regional) {
+      throw new ApiError(422, "Please select where this complaint occurred (a District, Zone, Town Administration, Office, or Regional Level)");
     }
 
     const anonymous = isAnonymous === "true" || isAnonymous === true;
@@ -69,16 +71,14 @@ async function create(req, res, next) {
 
     const trackingId = await createUniqueTrackingId();
 
-    let jurisdiction = {};
-    if (districtId || zoneId || townAdministrationId) {
-      jurisdiction = await resolveJurisdictionFromLocation({ districtId, zoneId, townAdministrationId });
-      if (Object.keys(jurisdiction).length === 0) {
-        throw new ApiError(422, "The selected District/Zone/Town Administration was not found");
-      }
-    } else if (officeId) {
-      const office = await prisma.office.findUnique({ where: { id: officeId } });
-      if (!office) throw new ApiError(422, "The selected Office was not found");
+    const resolved = await resolveJurisdictionFromLocation({ districtId, zoneId, townAdministrationId, officeId, isRegionalLevel: regional });
+    if (!resolved) {
+      throw new ApiError(422, "The selected District/Zone/Town Administration/Office was not found");
     }
+    const { jurisdiction, locationLabel } = resolved;
+    // Zone/Town/Office/Regional selections don't become a routing FK (see resolveJurisdictionFromLocation),
+    // so the citizen's original selection is preserved here instead, for display purposes only.
+    const finalLocation = locationLabel ? [locationLabel, location].filter(Boolean).join(" — ") : location;
 
     const files = req.files || [];
 
@@ -87,9 +87,8 @@ async function create(req, res, next) {
         trackingId,
         title,
         description,
-        location,
+        location: finalLocation,
         categoryId: categoryId || null,
-        officeId: officeId || null,
         isAnonymous: anonymous,
         submitterId,
         guestFullName: isGuestSubmission ? guestFullName : undefined,
@@ -123,16 +122,10 @@ async function create(req, res, next) {
       ipAddress: req.ip,
     });
 
-    // Notify admins scoped to this jurisdiction that a new complaint has arrived
-    const room = jurisdiction.districtId
-      ? `admin:district:${jurisdiction.districtId}`
-      : jurisdiction.zoneId
-      ? `admin:zone:${jurisdiction.zoneId}`
-      : jurisdiction.townAdministrationId
-      ? `admin:town:${jurisdiction.townAdministrationId}`
-      : officeId
-      ? `admin:office:${officeId}`
-      : "admin:super";
+    // Notify admins scoped to this jurisdiction that a new complaint has arrived — only a
+    // District-origin complaint (which cascades zoneId) reaches a jurisdiction-scoped admin room;
+    // everything else goes straight to Super Admin.
+    const room = jurisdiction.zoneId ? `admin:zone:${jurisdiction.zoneId}` : "admin:super";
     emitToJurisdiction(room, "complaint:new", { id: complaint.id, trackingId: complaint.trackingId, title: complaint.title });
 
     return success(res, {
@@ -435,7 +428,10 @@ async function escalate(req, res, next) {
     }
 
     const nextLevelLabel = nextLevel === "ZONE_ADMIN" ? "Zone Office" : "Regional Office (Super Admin)";
-    const currentLevelLabel = complaint.escalatedTo === "ZONE_ADMIN" ? "Zone" : complaint.districtId ? "District" : "Zone";
+    // A complaint only ever reaches this point if it's a District-origin complaint (which starts
+    // directly with the Zone Admin, not the District — see resolveJurisdictionFromLocation) or a
+    // legacy complaint already sitting at the old intermediate Zone level — either way, "Zone".
+    const currentLevelLabel = "Zone";
     const autoReason = dissatisfactionEligible
       ? `Citizen requested transfer to the upper office after rejecting the resolution ${complaint.satisfactionRejections} time(s)`
       : `Auto-escalated by citizen after 10 days with no response from the ${currentLevelLabel} office`;

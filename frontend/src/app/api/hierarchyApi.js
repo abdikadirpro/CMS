@@ -31,6 +31,7 @@ export const hierarchyApi = baseApi.injectEndpoints({
     ...resourceEndpoints(builder, "town-administrations", "TownAdministration"),
     ...resourceEndpoints(builder, "offices", "Office"),
     ...resourceEndpoints(builder, "categories", "Category"),
+    ...resourceEndpoints(builder, "party-branches", "PartyBranch"),
   }),
 });
 
@@ -40,4 +41,5 @@ export const {
   useGetTownAdministrationsQuery, useCreateTownAdministrationMutation, useUpdateTownAdministrationMutation, useDeleteTownAdministrationMutation,
   useGetOfficesQuery, useCreateOfficeMutation, useUpdateOfficeMutation, useDeleteOfficeMutation,
   useGetCategorysQuery, useCreateCategoryMutation, useUpdateCategoryMutation, useDeleteCategoryMutation,
+  useGetPartyBranchsQuery, useCreatePartyBranchMutation, useUpdatePartyBranchMutation, useDeletePartyBranchMutation,
 } = hierarchyApi;

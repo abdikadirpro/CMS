@@ -8,6 +8,7 @@ import { EmptyState } from "../../components/ui/Table";
 import { SkeletonCard } from "../../components/ui/Skeleton";
 import { Badge } from "../../components/ui/Badge";
 import { Modal } from "../../components/ui/Modal";
+import { ConfirmDialog, ConfirmDialogSubject, ConfirmDialogWarning } from "../../components/ui/ConfirmDialog";
 import Button from "../../components/ui/Button";
 import { useGetRolesQuery, useCreateRoleMutation, useDeleteRoleMutation, useGetPermissionsQuery } from "../../app/api/adminApi";
 
@@ -15,8 +16,9 @@ export default function PermissionManagement() {
   const { data: rolesRes, isLoading } = useGetRolesQuery();
   const { data: permissionsRes } = useGetPermissionsQuery();
   const [createRole, { isLoading: creating }] = useCreateRoleMutation();
-  const [deleteRole] = useDeleteRoleMutation();
+  const [deleteRole, { isLoading: deleting }] = useDeleteRoleMutation();
   const [modalOpen, setModalOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null);
   const { register, handleSubmit, control, reset, formState: { errors } } = useForm({ defaultValues: { permissionCodes: [] } });
 
   const roles = rolesRes?.data ?? [];
@@ -33,11 +35,11 @@ export default function PermissionManagement() {
     }
   }
 
-  async function onDelete(role) {
-    if (!window.confirm(`Delete role "${role.name}"?`)) return;
+  async function onDelete() {
     try {
-      await deleteRole(role.id).unwrap();
+      await deleteRole(deleteTarget.id).unwrap();
       toast.success("Role deleted");
+      setDeleteTarget(null);
     } catch (err) {
       toast.error(err?.data?.message || "Delete failed");
     }
@@ -66,7 +68,7 @@ export default function PermissionManagement() {
                   <h3 className="font-semibold">{role.name}</h3>
                   <p className="text-xs text-[rgb(var(--fg-muted))]">{role._count?.admins ?? 0} admins assigned</p>
                 </div>
-                <button onClick={() => onDelete(role)} className="rounded-lg p-1.5 text-red-400 hover:bg-red-500/10">
+                <button onClick={() => setDeleteTarget(role)} className="rounded-lg p-1.5 text-red-400 hover:bg-red-500/10">
                   <Trash2 className="h-4 w-4" />
                 </button>
               </div>
@@ -119,6 +121,19 @@ export default function PermissionManagement() {
           <Button type="submit" className="w-full" loading={creating}>Create Role</Button>
         </form>
       </Modal>
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={onDelete}
+        loading={deleting}
+        title="Delete Role"
+      >
+        <ConfirmDialogSubject name={deleteTarget?.name} />
+        <ConfirmDialogWarning>
+          Any admin currently assigned this role will lose the permissions it grants.
+        </ConfirmDialogWarning>
+      </ConfirmDialog>
     </div>
   );
 }

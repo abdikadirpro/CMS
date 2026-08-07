@@ -22,7 +22,13 @@ export default function Faq() {
 
       <div className="mt-8 space-y-3">
         {FAQS.map((item, i) => (
-          <div key={item.q} className="card overflow-hidden">
+          <div
+            key={item.q}
+            className={cn(
+              "card overflow-hidden transition-all duration-300 ease-out hover:border-primary/40 hover:shadow-md",
+              openIndex === i && "border-primary/40 shadow-md"
+            )}
+          >
             <button
               onClick={() => setOpenIndex(openIndex === i ? -1 : i)}
               className="flex w-full items-center justify-between px-5 py-4 text-left font-medium"

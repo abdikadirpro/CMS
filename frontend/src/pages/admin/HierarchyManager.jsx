@@ -6,6 +6,7 @@ import { Card } from "../../components/ui/Card";
 import { Table, THead, TH, TBody, TR, TD, EmptyState } from "../../components/ui/Table";
 import { SkeletonTable } from "../../components/ui/Skeleton";
 import { Modal } from "../../components/ui/Modal";
+import { ConfirmDialog, ConfirmDialogSubject, ConfirmDialogWarning } from "../../components/ui/ConfirmDialog";
 import Button from "../../components/ui/Button";
 import { Input, Select, Label, FieldError } from "../../components/ui/Input";
 
@@ -21,10 +22,11 @@ export default function HierarchyManager({
   const { data, isLoading } = useListQuery();
   const [createItem, { isLoading: creating }] = useCreateMutation();
   const [updateItem, { isLoading: updating }] = useUpdateMutation();
-  const [deleteItem] = useDeleteMutation();
+  const [deleteItem, { isLoading: deleting }] = useDeleteMutation();
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
   const { register, handleSubmit, reset, formState: { errors } } = useForm();
 
   const items = data?.data ?? [];
@@ -60,11 +62,11 @@ export default function HierarchyManager({
     }
   }
 
-  async function onDelete(item) {
-    if (!window.confirm(`Delete "${item.name}"? This cannot be undone.`)) return;
+  async function onDelete() {
     try {
-      await deleteItem(item.id).unwrap();
+      await deleteItem(deleteTarget.id).unwrap();
       toast.success("Deleted");
+      setDeleteTarget(null);
     } catch (err) {
       toast.error(err?.data?.message || "Delete failed");
     }
@@ -106,7 +108,7 @@ export default function HierarchyManager({
                       <button onClick={() => openEdit(item)} className="rounded-lg p-1.5 hover:bg-[rgb(var(--bg-alt))]">
                         <Pencil className="h-4 w-4" />
                       </button>
-                      <button onClick={() => onDelete(item)} className="rounded-lg p-1.5 text-red-400 hover:bg-red-500/10">
+                      <button onClick={() => setDeleteTarget(item)} className="rounded-lg p-1.5 text-red-400 hover:bg-red-500/10">
                         <Trash2 className="h-4 w-4" />
                       </button>
                     </div>
@@ -144,6 +146,17 @@ export default function HierarchyManager({
           </Button>
         </form>
       </Modal>
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={onDelete}
+        loading={deleting}
+        title={`Delete ${title}`}
+      >
+        <ConfirmDialogSubject name={deleteTarget?.name} />
+        <ConfirmDialogWarning />
+      </ConfirmDialog>
     </div>
   );
 }

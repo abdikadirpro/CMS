@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import toast from "react-hot-toast";
 import { Bell, CheckCheck, Trash2 } from "lucide-react";
@@ -5,6 +6,7 @@ import { Card } from "../../components/ui/Card";
 import { EmptyState } from "../../components/ui/Table";
 import { SkeletonCard } from "../../components/ui/Skeleton";
 import Button from "../../components/ui/Button";
+import { ConfirmDialog, ConfirmDialogWarning } from "../../components/ui/ConfirmDialog";
 import {
   useGetNotificationsQuery, useMarkAllNotificationsReadMutation,
   useMarkNotificationReadMutation, useClearReadNotificationsMutation,
@@ -16,15 +18,16 @@ export default function Notifications() {
   const [markRead] = useMarkNotificationReadMutation();
   const [markAllRead] = useMarkAllNotificationsReadMutation();
   const [clearRead, { isLoading: clearing }] = useClearReadNotificationsMutation();
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const notifications = data?.data ?? [];
   const readCount = notifications.filter((n) => n.isRead).length;
 
   async function handleClearRead() {
-    if (!window.confirm(`Clear ${readCount} read notification${readCount === 1 ? "" : "s"}? This cannot be undone.`)) return;
     try {
       const res = await clearRead().unwrap();
       toast.success(res.message || "Read notifications cleared");
+      setConfirmOpen(false);
     } catch (err) {
       toast.error(err?.data?.message || "Failed to clear notifications");
     }
@@ -69,13 +72,26 @@ export default function Notifications() {
 
           {readCount > 0 && (
             <div className="mt-4 flex justify-center">
-              <Button variant="ghost" size="sm" onClick={handleClearRead} loading={clearing} className="text-red-400 hover:bg-red-500/10">
+              <Button variant="ghost" size="sm" onClick={() => setConfirmOpen(true)} className="text-red-400 hover:bg-red-500/10">
                 <Trash2 className="h-4 w-4" /> Clear {readCount} read notification{readCount === 1 ? "" : "s"}
               </Button>
             </div>
           )}
         </>
       )}
+
+      <ConfirmDialog
+        open={confirmOpen}
+        onClose={() => setConfirmOpen(false)}
+        onConfirm={handleClearRead}
+        loading={clearing}
+        title="Clear Read Notifications"
+        confirmLabel={`Clear ${readCount} Notification${readCount === 1 ? "" : "s"}`}
+      >
+        <p className="text-sm text-[rgb(var(--fg-muted))]">You&apos;re about to clear</p>
+        <p className="mt-1 text-lg font-semibold">{readCount} read notification{readCount === 1 ? "" : "s"}</p>
+        <ConfirmDialogWarning />
+      </ConfirmDialog>
     </div>
   );
 }

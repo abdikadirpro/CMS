@@ -6,8 +6,11 @@ import { Table, THead, TH, TBody, TR, TD, EmptyState } from "../../components/ui
 import { SkeletonTable } from "../../components/ui/Skeleton";
 import { Badge } from "../../components/ui/Badge";
 import { Pagination } from "../../components/ui/Pagination";
+import { TypeAvatar } from "../../components/ui/TypeAvatar";
 import { useGetCitizensQuery } from "../../app/api/userApi";
 import { formatDate } from "../../lib/utils";
+
+const CITIZEN_AVATAR_STYLE = { className: "bg-primary/15 text-primary border-primary/30" };
 
 export default function UserManagement() {
   const [search, setSearch] = useState("");
@@ -38,14 +41,21 @@ export default function UserManagement() {
           <Table>
             <THead>
               <tr>
-                <TH>Name</TH><TH>Email</TH><TH>Phone</TH><TH>Complaints Filed</TH><TH>Status</TH><TH>Joined</TH>
+                <TH>Citizen</TH><TH>Phone</TH><TH>Complaints Filed</TH><TH>Status</TH><TH>Joined</TH>
               </tr>
             </THead>
             <TBody>
               {users.map((u) => (
                 <TR key={u.id}>
-                  <TD className="font-medium">{u.fullName}</TD>
-                  <TD>{u.email}</TD>
+                  <TD>
+                    <div className="flex items-center gap-3">
+                      <TypeAvatar name={u.fullName} style={CITIZEN_AVATAR_STYLE} />
+                      <div className="min-w-0">
+                        <p className="font-medium">{u.fullName}</p>
+                        <p className="truncate text-xs text-[rgb(var(--fg-muted))]">{u.email}</p>
+                      </div>
+                    </div>
+                  </TD>
                   <TD>{u.phone || "—"}</TD>
                   <TD>{u._count?.complaints ?? 0}</TD>
                   <TD><Badge variant={u.isActive ? "success" : "danger"}>{u.isActive ? "Active" : "Deactivated"}</Badge></TD>

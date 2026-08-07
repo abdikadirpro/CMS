@@ -21,16 +21,22 @@ export default function Contact() {
 
       <div className="mt-10 grid grid-cols-1 gap-8 lg:grid-cols-3">
         <div className="space-y-4 lg:col-span-1">
-          <Card className="flex items-center gap-3">
-            <Mail className="h-5 w-5 text-primary" />
+          <Card className="group flex cursor-default items-center gap-3 transition-all duration-300 ease-out hover:-translate-y-1 hover:border-primary/40 hover:shadow-lg hover:shadow-primary/10">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-primary/20 bg-primary/10 text-primary transition-all duration-300 group-hover:scale-110 group-hover:bg-primary group-hover:text-white">
+              <Mail className="h-5 w-5" />
+            </div>
             <span className="text-sm">support@cms.gov</span>
           </Card>
-          <Card className="flex items-center gap-3">
-            <Phone className="h-5 w-5 text-primary" />
+          <Card className="group flex cursor-default items-center gap-3 transition-all duration-300 ease-out hover:-translate-y-1 hover:border-primary/40 hover:shadow-lg hover:shadow-primary/10">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-primary/20 bg-primary/10 text-primary transition-all duration-300 group-hover:scale-110 group-hover:bg-primary group-hover:text-white">
+              <Phone className="h-5 w-5" />
+            </div>
             <span className="text-sm">+252 61 000 0000</span>
           </Card>
-          <Card className="flex items-center gap-3">
-            <MapPin className="h-5 w-5 text-primary" />
+          <Card className="group flex cursor-default items-center gap-3 transition-all duration-300 ease-out hover:-translate-y-1 hover:border-primary/40 hover:shadow-lg hover:shadow-primary/10">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-primary/20 bg-primary/10 text-primary transition-all duration-300 group-hover:scale-110 group-hover:bg-primary group-hover:text-white">
+              <MapPin className="h-5 w-5" />
+            </div>
             <span className="text-sm">National Complaint Coordination Office</span>
           </Card>
         </div>

@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "PowerShell(Restart-Service -Name \"postgresql-x64-17\" -Force)",
-      "PowerShell(Get-Service -Name \"postgresql-x64-17\")"
+      "PowerShell(Get-Service -Name \"postgresql-x64-17\")",
+      "Bash(curl -s -X POST http://localhost:5000/api/auth/login -H \"Content-Type: application/json\" -d '{\"email\":\"townadmin1_1@cms.gov\",\"password\":\"Passw0rd!123\"}')",
+      "Bash(node -e ' *)"
     ]
   }
 }

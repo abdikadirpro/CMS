@@ -43,3 +43,49 @@ export const ADMIN_TYPE_LABELS = {
   DISTRICT_ADMIN: "District Admin",
   OFFICE_ADMIN: "Office Admin",
 };
+
+export const PARTY_ADMIN_TYPE_LABELS = {
+  PARTY_SUPER_ADMIN: "Party Super Admin",
+  PARTY_ZONE_ADMIN: "Party Zone Admin",
+  PARTY_TOWN_ADMIN: "Party Town Administration Admin",
+  PARTY_DISTRICT_ADMIN: "Party District Admin",
+  PARTY_OFFICE_ADMIN: "Party Office Admin",
+};
+
+export const MEMBER_STATUS_LABELS = {
+  PENDING: "Applicant",
+  PROBATIONARY: "Probationary Member",
+  FULL: "Full Member",
+  REJECTED: "Rejected",
+};
+
+export const MEMBER_STATUS_VARIANT = {
+  PENDING: "default",
+  PROBATIONARY: "warning",
+  FULL: "success",
+  REJECTED: "danger",
+};
+
+export const VOLUNTEER_STATUS_LABELS = {
+  NEW: "New",
+  CONTACTED: "Contacted",
+  ACTIVE: "Active",
+  INACTIVE: "Inactive",
+};
+
+export const VOLUNTEER_STATUS_VARIANT = {
+  NEW: "default",
+  CONTACTED: "warning",
+  ACTIVE: "success",
+  INACTIVE: "danger",
+};
+
+export const DONATION_STATUS_LABELS = {
+  PENDING: "Pending",
+  CONFIRMED: "Confirmed",
+};
+
+export const DONATION_STATUS_VARIANT = {
+  PENDING: "warning",
+  CONFIRMED: "success",
+};

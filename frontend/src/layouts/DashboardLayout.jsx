@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
-import { Menu, X, Moon, Sun, ShieldCheck, LogOut, ChevronDown } from "lucide-react";
+import { Menu, X, Moon, Sun, LogOut, ChevronDown } from "lucide-react";
 import { useTheme } from "../hooks/useTheme";
 import { useAuth } from "../hooks/useAuth";
 import { getNavItems } from "./navConfig";
@@ -44,8 +44,8 @@ export default function DashboardLayout() {
       >
         <div className="flex h-16 items-center justify-between border-b border-[rgb(var(--border))] px-5">
           <div className="flex items-center gap-2 font-bold">
-            <ShieldCheck className="h-6 w-6 text-primary" />
-            CMS<span className="text-primary">.</span>
+            <img src="/cms-logo.jpeg" alt="Xafiiska Koomishinka Anshaxa & Baadhista" className="h-9 w-9 rounded-full object-cover" />
+            <span className="truncate text-sm">Xafiiska Koomishinka Anshaxa</span>
           </div>
           <button className="lg:hidden" onClick={() => setSidebarOpen(false)}>
             <X className="h-5 w-5" />
@@ -81,7 +81,7 @@ export default function DashboardLayout() {
         </div>
       </aside>
 
-      <div className="flex flex-1 flex-col lg:pl-0">
+      <div className="flex min-w-0 flex-1 flex-col lg:pl-0">
         <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-[rgb(var(--border))] bg-[rgb(var(--bg))]/80 px-4 backdrop-blur-md sm:px-6">
           <button className="lg:hidden" onClick={() => setSidebarOpen(true)}>
             <Menu className="h-6 w-6" />

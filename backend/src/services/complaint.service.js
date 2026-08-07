@@ -12,28 +12,45 @@ async function createUniqueTrackingId() {
 }
 
 /**
- * Resolves the complaint's geographic jurisdiction from the citizen's explicit location choice —
- * a District (cascades its parent Zone), a Zone directly (for zone-wide issues with no specific
- * district), or a standalone Town Administration — never from the selected Office, since offices
- * (e.g. national ministries) are a separate "who handles it" concern from "where it happened".
+ * Resolves the complaint's routing jurisdiction from the citizen's explicit location choice, per
+ * the Ethics & Investigation office's routing table:
+ *   District              -> the district's own Zone Ethics & Investigation Office
+ *   Zone (general)         -> Regional (DDS) Ethics & Investigation Office (Super Admin)
+ *   Town Administration    -> Regional (DDS) Ethics & Investigation Office (Super Admin)
+ *   Office / Bureau        -> Regional (DDS) Ethics & Investigation Office (Super Admin)
+ *   Regional Level          -> Regional Ethics & Investigation Commission (Super Admin)
+ * Only a District selection lands with a jurisdiction-scoped admin (its Zone Admin) — every other
+ * option is intentionally left unassigned (no zoneId/townAdministrationId/officeId) so it goes
+ * straight to Super Admin instead of that level's own admin; see scopeForAdmin in rbac.js. The
+ * originally selected Zone/Town/Office name is still preserved in the free-text `location` field
+ * so nothing is lost for display purposes even though it's no longer a routing FK. Returns `null`
+ * if a supplied id doesn't resolve to a real record.
  */
-async function resolveJurisdictionFromLocation({ districtId, zoneId, townAdministrationId }) {
+async function resolveJurisdictionFromLocation({ districtId, zoneId, townAdministrationId, officeId, isRegionalLevel }) {
   if (districtId) {
     const district = await prisma.district.findUnique({ where: { id: districtId } });
-    if (!district) return {};
-    return { districtId: district.id, zoneId: district.zoneId, townAdministrationId: null };
+    if (!district) return null;
+    return { jurisdiction: { districtId: district.id, zoneId: district.zoneId, townAdministrationId: null, officeId: null }, locationLabel: null };
   }
   if (zoneId) {
     const zone = await prisma.zone.findUnique({ where: { id: zoneId } });
-    if (!zone) return {};
-    return { zoneId: zone.id, districtId: null, townAdministrationId: null };
+    if (!zone) return null;
+    return { jurisdiction: { districtId: null, zoneId: null, townAdministrationId: null, officeId: null }, locationLabel: `Zone: ${zone.name}` };
   }
   if (townAdministrationId) {
     const town = await prisma.townAdministration.findUnique({ where: { id: townAdministrationId } });
-    if (!town) return {};
-    return { townAdministrationId: town.id, districtId: null, zoneId: null };
+    if (!town) return null;
+    return { jurisdiction: { districtId: null, zoneId: null, townAdministrationId: null, officeId: null }, locationLabel: `Town Administration: ${town.name}` };
   }
-  return {};
+  if (officeId) {
+    const office = await prisma.office.findUnique({ where: { id: officeId } });
+    if (!office) return null;
+    return { jurisdiction: { districtId: null, zoneId: null, townAdministrationId: null, officeId: null }, locationLabel: `Office: ${office.name}` };
+  }
+  if (isRegionalLevel) {
+    return { jurisdiction: { districtId: null, zoneId: null, townAdministrationId: null, officeId: null }, locationLabel: "Regional Level" };
+  }
+  return null;
 }
 
 const SUBMISSION_MONTHLY_LIMIT = 3;
@@ -108,16 +125,18 @@ const ESCALATION_TERMINAL_STATUSES = new Set(["SOLVED", "REJECTED"]);
 const SATISFACTION_REJECTION_THRESHOLD = 3;
 
 /**
- * The next hierarchy level a complaint can escalate to. `escalatedTo` tracks the level it has
- * already escalated to (districtId/zoneId stay put during escalation, so they alone can't tell
- * a first hop from a second) — District -> Zone -> Super Admin, or Zone -> Super Admin.
+ * The next hierarchy level a complaint can escalate to. Only a District-origin complaint has an
+ * escalation path at all — it already starts with its Zone Admin (see resolveJurisdictionFromLocation),
+ * so its one and only hop is up to Super Admin. Every other origin (Zone/Town/Office/Regional) is
+ * unassigned from submission and already sits with Super Admin, so there's nowhere left to escalate to.
+ * The `escalatedTo === "ZONE_ADMIN"` branch is kept only for complaints created before this routing
+ * change that may still be sitting at that legacy intermediate state.
  */
 function getNextEscalationLevel(complaint) {
   if (complaint.escalatedTo === "SUPER_ADMIN") return null; // already at the top
-  if (complaint.escalatedTo === "ZONE_ADMIN") return "SUPER_ADMIN"; // second hop: District -> Zone -> Super Admin
-  if (complaint.districtId) return "ZONE_ADMIN"; // first hop from a District-origin complaint
-  if (complaint.zoneId) return "SUPER_ADMIN"; // first (and only) hop from a Zone-origin complaint
-  return null; // Town Administration / Office origin has no escalation path
+  if (complaint.escalatedTo === "ZONE_ADMIN") return "SUPER_ADMIN"; // legacy data: second hop to Super Admin
+  if (complaint.districtId) return "SUPER_ADMIN"; // District-origin complaints start at the Zone Admin and escalate once, to Super Admin
+  return null; // Zone/Town/Office/Regional-origin complaints already sit with Super Admin
 }
 
 /**

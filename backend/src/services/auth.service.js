@@ -31,6 +31,8 @@ async function issueTokenPair(actor) {
       tokenHash: hashToken(refreshToken),
       userId: actor.type === "USER" ? actor.id : null,
       adminId: actor.type === "ADMIN" ? actor.id : null,
+      partyAdminId: actor.type === "PARTY_ADMIN" ? actor.id : null,
+      memberId: actor.type === "MEMBER" ? actor.id : null,
       expiresAt,
     },
   });
@@ -58,7 +60,10 @@ const MAX_LOGIN_ATTEMPTS = 3;
 const LOCKOUT_DURATION_MS = 60 * 60 * 1000;
 
 function actorTable(actorType) {
-  return actorType === "ADMIN" ? prisma.admin : prisma.user;
+  if (actorType === "ADMIN") return prisma.admin;
+  if (actorType === "PARTY_ADMIN") return prisma.partyAdmin;
+  if (actorType === "MEMBER") return prisma.member;
+  return prisma.user;
 }
 
 /**
@@ -99,6 +104,16 @@ function sanitizeAdmin(admin) {
   return { ...safe, type: "ADMIN" };
 }
 
+function sanitizePartyAdmin(partyAdmin) {
+  const { passwordHash, resetTokenHash, ...safe } = partyAdmin;
+  return { ...safe, type: "PARTY_ADMIN" };
+}
+
+function sanitizeMember(member) {
+  const { passwordHash, resetTokenHash, ...safe } = member;
+  return { ...safe, type: "MEMBER" };
+}
+
 module.exports = {
   generateOtp,
   issueTokenPair,
@@ -106,6 +121,8 @@ module.exports = {
   comparePassword,
   sanitizeUser,
   sanitizeAdmin,
+  sanitizePartyAdmin,
+  sanitizeMember,
   recordFailedLogin,
   resetLoginAttempts,
   MAX_LOGIN_ATTEMPTS,

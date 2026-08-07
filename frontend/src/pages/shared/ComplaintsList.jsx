@@ -48,26 +48,26 @@ export default function ComplaintsList() {
       </div>
 
       <Card className="mb-4">
-        <div className="flex flex-col gap-3 sm:flex-row">
-          <div className="relative flex-1">
+        <div className="flex flex-wrap gap-3">
+          <div className="relative min-w-[200px] flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
             <Input placeholder="Search by title or tracking ID..." className="pl-9" value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} />
           </div>
-          <Select value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); }} className="sm:w-56">
+          <Select value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); }} className="w-full sm:w-48">
             <option value="">All Statuses</option>
             {STATUSES.map((s) => <option key={s} value={s}>{s.replace("_", " ")}</option>)}
           </Select>
           {isAdmin && (
             <>
-              <Select value={categoryId} onChange={(e) => { setCategoryId(e.target.value); setPage(1); }} className="sm:w-56">
+              <Select value={categoryId} onChange={(e) => { setCategoryId(e.target.value); setPage(1); }} className="w-full sm:w-48">
                 <option value="">All Categories</option>
                 {(categories?.data ?? []).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
               </Select>
-              <Select value={zoneId} onChange={(e) => { setZoneId(e.target.value); setPage(1); }} className="sm:w-56">
+              <Select value={zoneId} onChange={(e) => { setZoneId(e.target.value); setPage(1); }} className="w-full sm:w-48">
                 <option value="">All Zones</option>
                 {(zones?.data ?? []).map((z) => <option key={z.id} value={z.id}>{z.name}</option>)}
               </Select>
-              <Select value={townAdministrationId} onChange={(e) => { setTownAdministrationId(e.target.value); setPage(1); }} className="sm:w-56">
+              <Select value={townAdministrationId} onChange={(e) => { setTownAdministrationId(e.target.value); setPage(1); }} className="w-full sm:w-48">
                 <option value="">All Administrations</option>
                 {(townAdministrations?.data ?? []).map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
               </Select>

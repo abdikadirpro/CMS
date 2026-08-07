@@ -2,8 +2,9 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import toast from "react-hot-toast";
-import { Mail, KeyRound, Lock } from "lucide-react";
+import { Mail, KeyRound } from "lucide-react";
 import { Input, Label, FieldError } from "../../components/ui/Input";
+import { PasswordInput } from "../../components/ui/PasswordInput";
 import Button from "../../components/ui/Button";
 import { useForgotPasswordMutation, useResetPasswordMutation } from "../../app/api/authApi";
 
@@ -73,15 +74,10 @@ export default function ForgotPassword() {
           </div>
           <div>
             <Label>New Password</Label>
-            <div className="relative">
-              <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-              <Input
-                type="password"
-                placeholder="At least 8 characters"
-                className="pl-9"
-                {...register("newPassword", { required: "Password is required", minLength: { value: 8, message: "Minimum 8 characters" } })}
-              />
-            </div>
+            <PasswordInput
+              placeholder="At least 8 characters"
+              {...register("newPassword", { required: "Password is required", minLength: { value: 8, message: "Minimum 8 characters" } })}
+            />
             <FieldError>{errors.newPassword?.message}</FieldError>
           </div>
           {serverError && <p className="rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-400">{serverError}</p>}

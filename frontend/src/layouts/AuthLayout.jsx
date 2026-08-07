@@ -1,6 +1,5 @@
 import { Link, Outlet } from "react-router-dom";
 import { motion } from "framer-motion";
-import { ShieldCheck } from "lucide-react";
 
 export default function AuthLayout() {
   return (
@@ -14,9 +13,8 @@ export default function AuthLayout() {
         transition={{ duration: 0.4 }}
         className="glass-panel relative z-10 w-full max-w-md rounded-2xl p-8 text-slate-100"
       >
-        <Link to="/" className="mb-6 flex items-center justify-center gap-2 text-xl font-bold">
-          <ShieldCheck className="h-7 w-7 text-primary" />
-          CMS<span className="text-primary">.</span>
+        <Link to="/ethics" className="mb-6 flex items-center justify-center gap-2 text-xl font-bold">
+          <img src="/cms-logo.jpeg" alt="Xafiiska Koomishinka Anshaxa & Baadhista" className="h-11 w-11 rounded-full object-cover" />
         </Link>
         <Outlet />
       </motion.div>

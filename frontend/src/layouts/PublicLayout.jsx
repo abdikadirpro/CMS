@@ -1,5 +1,5 @@
 import { Link, NavLink, Outlet } from "react-router-dom";
-import { Menu, X, Moon, Sun, ShieldCheck } from "lucide-react";
+import { Menu, X, Moon, Sun } from "lucide-react";
 import { useState } from "react";
 import { useTheme } from "../hooks/useTheme";
 import { useAuth } from "../hooks/useAuth";
@@ -8,7 +8,6 @@ import Button from "../components/ui/Button";
 const NAV_LINKS = [
   { to: "/", label: "Home" },
   { to: "/about", label: "About" },
-  { to: "/contact", label: "Contact" },
   { to: "/faq", label: "FAQ" },
   { to: "/track", label: "Track Complaint" },
 ];
@@ -23,10 +22,8 @@ export default function PublicLayout() {
       <header className="sticky top-0 z-30 border-b border-[rgb(var(--border))] bg-[rgb(var(--bg))]/80 backdrop-blur-md">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
           <Link to="/" className="flex items-center gap-2 font-bold text-lg">
-            <ShieldCheck className="h-6 w-6 text-primary" />
-            <span>
-              CMS<span className="text-primary">.</span>
-            </span>
+            <img src="/barwaaqo-logo.jpeg" alt="Xisbiga Barwaaqo Laantiisa DDS" className="h-10 w-10 rounded-full object-cover" />
+            <span className="hidden sm:inline">Xisbiga Barwaaqo Laantiisa DDS</span>
           </Link>
 
           <nav className="hidden items-center gap-1 md:flex">
@@ -55,14 +52,9 @@ export default function PublicLayout() {
                 <Button size="sm">Dashboard</Button>
               </Link>
             ) : (
-              <>
-                <Link to="/login">
-                  <Button variant="ghost" size="sm">Login</Button>
-                </Link>
-                <Link to="/register">
-                  <Button size="sm">Get Started</Button>
-                </Link>
-              </>
+              <Link to="/get-started">
+                <Button size="sm">Get Started</Button>
+              </Link>
             )}
           </div>
 
@@ -91,14 +83,9 @@ export default function PublicLayout() {
                     <Button size="sm" className="w-full">Dashboard</Button>
                   </Link>
                 ) : (
-                  <>
-                    <Link to="/login" className="w-full">
-                      <Button variant="secondary" size="sm" className="w-full">Login</Button>
-                    </Link>
-                    <Link to="/register" className="w-full">
-                      <Button size="sm" className="w-full">Get Started</Button>
-                    </Link>
-                  </>
+                  <Link to="/get-started" className="w-full">
+                    <Button size="sm" className="w-full">Get Started</Button>
+                  </Link>
                 )}
               </div>
             </nav>
@@ -112,7 +99,10 @@ export default function PublicLayout() {
 
       <footer className="border-t border-[rgb(var(--border))] py-10">
         <div className="mx-auto max-w-7xl px-4 text-center text-sm text-[rgb(var(--fg-muted))] sm:px-6">
-          <p>&copy; {new Date().getFullYear()} Complaint Management System. All rights reserved.</p>
+          <p>&copy; {new Date().getFullYear()} Xisbiga Barwaaqo Laantiisa DDS. All rights reserved.</p>
+          <Link to="/barwaaqo/login" className="mt-2 inline-block text-xs text-[rgb(var(--fg-muted))] hover:text-primary hover:underline">
+            Xisbiga Barwaaqo Sign In
+          </Link>
         </div>
       </footer>
     </div>

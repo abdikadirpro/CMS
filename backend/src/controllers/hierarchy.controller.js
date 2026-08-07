@@ -40,7 +40,7 @@ function crudFor(model, { includeCounts, editableFields = ["name"] } = {}) {
       try {
         const item = await prisma[model].create({ data: sanitizeBody(req.body, editableFields) });
         await logActivity({
-          actor: { type: "ADMIN", id: req.actor.id, fullName: req.actor.fullName },
+          actor: { type: req.actor.type, id: req.actor.id, fullName: req.actor.fullName },
           action: `${model.toUpperCase()}_CREATED`,
           targetType: model,
           targetId: item.id,
@@ -54,7 +54,7 @@ function crudFor(model, { includeCounts, editableFields = ["name"] } = {}) {
       try {
         const item = await prisma[model].update({ where: { id: req.params.id }, data: sanitizeBody(req.body, editableFields) });
         await logActivity({
-          actor: { type: "ADMIN", id: req.actor.id, fullName: req.actor.fullName },
+          actor: { type: req.actor.type, id: req.actor.id, fullName: req.actor.fullName },
           action: `${model.toUpperCase()}_UPDATED`,
           targetType: model,
           targetId: item.id,
@@ -68,7 +68,7 @@ function crudFor(model, { includeCounts, editableFields = ["name"] } = {}) {
       try {
         await prisma[model].delete({ where: { id: req.params.id } });
         await logActivity({
-          actor: { type: "ADMIN", id: req.actor.id, fullName: req.actor.fullName },
+          actor: { type: req.actor.type, id: req.actor.id, fullName: req.actor.fullName },
           action: `${model.toUpperCase()}_DELETED`,
           targetType: model,
           targetId: req.params.id,
@@ -98,5 +98,9 @@ const offices = crudFor("office", {
   editableFields: ["name", "zoneId", "districtId", "townAdministrationId"],
 });
 const categories = crudFor("category", { editableFields: ["name", "description"] });
+const partyBranches = crudFor("partyBranch", {
+  includeCounts: () => ({ _count: { select: { members: true } } }),
+  editableFields: ["name"],
+});
 
-module.exports = { zones, districts, townAdministrations, offices, categories };
+module.exports = { zones, districts, townAdministrations, offices, categories, partyBranches };

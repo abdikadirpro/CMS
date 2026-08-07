@@ -1,13 +1,15 @@
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import toast from "react-hot-toast";
-import { Shield, Plus, KeyRound, Trash2, Search } from "lucide-react";
+import { Shield, Plus, KeyRound, Trash2, Search, Crown, Globe, MapPin, Building2, Landmark, Eye, EyeOff } from "lucide-react";
 import { Card } from "../../components/ui/Card";
 import { Input, Select, Label, FieldError } from "../../components/ui/Input";
 import { Table, THead, TH, TBody, TR, TD, EmptyState } from "../../components/ui/Table";
 import { SkeletonTable } from "../../components/ui/Skeleton";
 import { Badge } from "../../components/ui/Badge";
 import { Modal } from "../../components/ui/Modal";
+import { ConfirmDialog, ConfirmDialogSubject, ConfirmDialogWarning } from "../../components/ui/ConfirmDialog";
+import { TypeAvatar, TypeBadge } from "../../components/ui/TypeAvatar";
 import Button from "../../components/ui/Button";
 import { Pagination } from "../../components/ui/Pagination";
 import {
@@ -19,6 +21,18 @@ import { ADMIN_TYPE_LABELS } from "../../lib/utils";
 
 const ADMIN_TYPES = ["SUPER_ADMIN", "ZONE_ADMIN", "TOWN_ADMIN", "DISTRICT_ADMIN", "OFFICE_ADMIN"];
 const JURISDICTION_FIELD = { ZONE_ADMIN: "zoneId", TOWN_ADMIN: "townAdministrationId", DISTRICT_ADMIN: "districtId", OFFICE_ADMIN: "officeId" };
+
+const TYPE_STYLE = {
+  SUPER_ADMIN: { icon: Crown, className: "bg-amber-500/15 text-amber-400 border-amber-500/30" },
+  ZONE_ADMIN: { icon: Globe, className: "bg-indigo-500/15 text-indigo-400 border-indigo-500/30" },
+  DISTRICT_ADMIN: { icon: MapPin, className: "bg-primary/15 text-primary border-primary/30" },
+  TOWN_ADMIN: { icon: Building2, className: "bg-teal-500/15 text-teal-400 border-teal-500/30" },
+  OFFICE_ADMIN: { icon: Landmark, className: "bg-slate-500/15 text-slate-400 border-slate-500/30" },
+};
+
+function styleFor(type) {
+  return TYPE_STYLE[type] || TYPE_STYLE.DISTRICT_ADMIN;
+}
 
 export default function AdminControlCenter() {
   const [search, setSearch] = useState("");
@@ -33,10 +47,14 @@ export default function AdminControlCenter() {
 
   const [createAdmin, { isLoading: creating }] = useCreateAdminMutation();
   const [updateAdmin] = useUpdateAdminMutation();
-  const [resetPassword] = useResetAdminPasswordMutation();
-  const [deleteAdmin] = useDeleteAdminMutation();
+  const [resetPassword, { isLoading: resetting }] = useResetAdminPasswordMutation();
+  const [deleteAdmin, { isLoading: deleting }] = useDeleteAdminMutation();
 
   const [modalOpen, setModalOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [resetTarget, setResetTarget] = useState(null);
+  const [newPassword, setNewPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const { register, handleSubmit, watch, reset, formState: { errors } } = useForm({ defaultValues: { adminType: "DISTRICT_ADMIN" } });
   const selectedType = watch("adminType");
   const jurisdictionField = JURISDICTION_FIELD[selectedType];
@@ -74,22 +92,31 @@ export default function AdminControlCenter() {
     }
   }
 
-  async function onResetPassword(admin) {
-    const newPassword = window.prompt(`Enter a new password for ${admin.fullName} (min 8 characters):`);
-    if (!newPassword) return;
+  function closeResetModal() {
+    setResetTarget(null);
+    setNewPassword("");
+    setShowPassword(false);
+  }
+
+  async function onResetPassword() {
+    if (newPassword.length < 8) {
+      toast.error("Password must be at least 8 characters");
+      return;
+    }
     try {
-      await resetPassword({ id: admin.id, newPassword }).unwrap();
+      await resetPassword({ id: resetTarget.id, newPassword }).unwrap();
       toast.success("Password reset");
+      closeResetModal();
     } catch (err) {
       toast.error(err?.data?.message || "Reset failed");
     }
   }
 
-  async function onDelete(admin) {
-    if (!window.confirm(`Delete admin "${admin.fullName}"? This cannot be undone.`)) return;
+  async function onDelete() {
     try {
-      await deleteAdmin(admin.id).unwrap();
+      await deleteAdmin(deleteTarget.id).unwrap();
       toast.success("Admin deleted");
+      setDeleteTarget(null);
     } catch (err) {
       toast.error(err?.data?.message || "Delete failed");
     }
@@ -126,14 +153,21 @@ export default function AdminControlCenter() {
         ) : (
           <Table>
             <THead>
-              <tr><TH>Name</TH><TH>Email</TH><TH>Type</TH><TH>Jurisdiction</TH><TH>Status</TH><TH></TH></tr>
+              <tr><TH>Admin</TH><TH>Type</TH><TH>Jurisdiction</TH><TH>Status</TH><TH></TH></tr>
             </THead>
             <TBody>
               {admins.map((a) => (
                 <TR key={a.id}>
-                  <TD className="font-medium">{a.fullName}</TD>
-                  <TD>{a.email}</TD>
-                  <TD><Badge variant="primary">{ADMIN_TYPE_LABELS[a.adminType]}</Badge></TD>
+                  <TD>
+                    <div className="flex items-center gap-3">
+                      <TypeAvatar name={a.fullName} style={styleFor(a.adminType)} />
+                      <div className="min-w-0">
+                        <p className="font-medium">{a.fullName}</p>
+                        <p className="truncate text-xs text-[rgb(var(--fg-muted))]">{a.email}</p>
+                      </div>
+                    </div>
+                  </TD>
+                  <TD><TypeBadge label={ADMIN_TYPE_LABELS[a.adminType]} style={styleFor(a.adminType)} /></TD>
                   <TD className="text-[rgb(var(--fg-muted))]">{a.zone?.name || a.district?.name || a.townAdministration?.name || a.office?.name || "—"}</TD>
                   <TD>
                     <button onClick={() => toggleActive(a)}>
@@ -142,10 +176,10 @@ export default function AdminControlCenter() {
                   </TD>
                   <TD>
                     <div className="flex gap-2">
-                      <button onClick={() => onResetPassword(a)} className="rounded-lg p-1.5 hover:bg-[rgb(var(--bg-alt))]" title="Reset password">
+                      <button onClick={() => setResetTarget(a)} className="rounded-lg p-1.5 hover:bg-[rgb(var(--bg-alt))]" title="Reset password">
                         <KeyRound className="h-4 w-4" />
                       </button>
-                      <button onClick={() => onDelete(a)} className="rounded-lg p-1.5 text-red-400 hover:bg-red-500/10" title="Delete">
+                      <button onClick={() => setDeleteTarget(a)} className="rounded-lg p-1.5 text-red-400 hover:bg-red-500/10" title="Delete">
                         <Trash2 className="h-4 w-4" />
                       </button>
                     </div>
@@ -201,6 +235,50 @@ export default function AdminControlCenter() {
           </div>
           <Button type="submit" className="w-full" loading={creating}>Create Admin</Button>
         </form>
+      </Modal>
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={onDelete}
+        loading={deleting}
+        title="Delete Admin"
+      >
+        <ConfirmDialogSubject name={deleteTarget?.fullName} badge={deleteTarget?.email} />
+        <ConfirmDialogWarning />
+      </ConfirmDialog>
+
+      <Modal open={Boolean(resetTarget)} onClose={closeResetModal} title="Reset Password" className="max-w-md">
+        <div className="mb-4 flex items-center gap-3">
+          <TypeAvatar name={resetTarget?.fullName} style={styleFor(resetTarget?.adminType)} />
+          <div>
+            <p className="font-medium">{resetTarget?.fullName}</p>
+            <p className="text-xs text-[rgb(var(--fg-muted))]">{resetTarget?.email}</p>
+          </div>
+        </div>
+        <Label>New Password</Label>
+        <div className="relative">
+          <Input
+            type={showPassword ? "text" : "password"}
+            placeholder="At least 8 characters"
+            className="pr-10"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+          />
+          <button
+            type="button"
+            onClick={() => setShowPassword((v) => !v)}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-[rgb(var(--fg))]"
+          >
+            {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+          </button>
+        </div>
+        <div className="mt-6 flex justify-end gap-2">
+          <Button variant="ghost" onClick={closeResetModal}>Cancel</Button>
+          <Button loading={resetting} onClick={onResetPassword}>
+            <KeyRound className="h-4 w-4" /> Reset Password
+          </Button>
+        </div>
       </Modal>
     </div>
   );
